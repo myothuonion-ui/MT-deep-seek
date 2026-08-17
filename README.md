@@ -8,7 +8,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-AI-driven autonomous penetration testing framework. Executes an engagement pipeline from OSINT/recon through validation/exploitation using an LLM (DeepSeek API or local Ollama) with explicit authorization and safety controls.
+AI-driven autonomous penetration testing framework. Executes an engagement pipeline from OSINT/recon through validation/exploitation using an LLM (local Ollama, DeepSeek, NVIDIA hosted NIM, or Gemini) with explicit authorization and safety controls.
 
 **Upstream repository:** [https://github.com/KhitMinnyo/KMN-CyberSeek](https://github.com/KhitMinnyo/KMN-CyberSeek)
 
@@ -32,7 +32,7 @@ The profile intentionally grants no raw-socket/elevated capabilities. Some low-l
 
 ## Standard local installation
 
-**Prerequisites:** Python 3.10+, optional Nmap/security tooling, and Ollama or a DeepSeek API key if AI is required.
+**Prerequisites:** Python 3.10+, optional Nmap/security tooling, and one configured AI provider if AI reasoning is required.
 
 ```bash
 git clone https://github.com/myothuonion-ui/MT-deep-seek.git
@@ -40,7 +40,7 @@ cd MT-deep-seek
 ./start.sh
 ```
 
-`start.sh` now requires the committed `requirements.lock` by default and installs it with `--no-deps`, preventing dependency resolution from drifting between runs. A development-only unlocked fallback requires explicit `ALLOW_UNLOCKED_INSTALL=true`.
+`start.sh` requires the committed `requirements.lock` by default and installs it with `--no-deps`, preventing dependency resolution from drifting between runs. A development-only unlocked fallback requires explicit `ALLOW_UNLOCKED_INSTALL=true`.
 
 ---
 
@@ -53,7 +53,7 @@ FastAPI Backend     (6000)
    Orchestrator │ Scanner │ AI Connector │ SQLite DB
          │               │               │
    AI Engine         Scan tools       Command execution
-  DeepSeek/Ollama                   inside runtime boundary
+ Ollama / DeepSeek / NVIDIA / Gemini inside runtime boundary
 ```
 
 ---
@@ -61,9 +61,9 @@ FastAPI Backend     (6000)
 ## Quick Start
 
 1. Set an explicit `SCOPE_ALLOWLIST` for systems you own or are authorized to test.
-2. Run the hardened Compose profile or `./start.sh`.
-3. Open `http://127.0.0.1:8501`.
-4. Configure Ollama/DeepSeek under **Settings → AI Configuration**.
+2. Choose one AI provider in `.env`.
+3. Run the hardened Compose profile or `./start.sh`.
+4. Open `http://127.0.0.1:8501`.
 5. Create a session and confirm authorization.
 6. Review AI decisions, command approvals, scan results and evidence as the session progresses.
 
@@ -83,6 +83,8 @@ INCLUDE_SECRETS_IN_REPORTS=false
 
 An empty `SCOPE_ALLOWLIST` denies targets unless the unsafe development override is deliberately enabled. The hardened Compose profile requires a non-empty allowlist before it will start.
 
+Cloud API keys are never selected merely because they exist in the environment. NVIDIA and Gemini require an explicit `AI_PROVIDER` selection, which prevents adding a secret from silently rerouting engagement data to a cloud service.
+
 ### AI — Ollama
 
 ```env
@@ -94,10 +96,47 @@ OLLAMA_CONTEXT_WINDOW=8192
 
 ### AI — DeepSeek API
 
+`api` remains the backward-compatible DeepSeek provider name; `deepseek` is accepted as an alias.
+
 ```env
 AI_PROVIDER=api
 DEEPSEEK_API_KEY=sk-...
 DEEPSEEK_MODEL=deepseek-chat
+```
+
+### AI — NVIDIA hosted NIM
+
+NVIDIA's hosted LLM endpoint is OpenAI-compatible. The default is GLM-5.2, but `NVIDIA_MODEL` may be changed to another model enabled for the same NVIDIA API key.
+
+```env
+AI_PROVIDER=nvidia
+NVIDIA_API_KEY=nvapi-...
+NVIDIA_MODEL=z-ai/glm-5.2
+NVIDIA_CONTEXT_WINDOW=1000000
+```
+
+Example alternative model selection:
+
+```env
+NVIDIA_MODEL=deepseek-ai/deepseek-v4-pro
+```
+
+### AI — Gemini
+
+Gemini uses Google's OpenAI-compatible endpoint. The model is configurable rather than hard-wired into the execution policy.
+
+```env
+AI_PROVIDER=gemini
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-3.6-flash
+GEMINI_CONTEXT_WINDOW=131072
+```
+
+### Shared cloud generation controls
+
+```env
+AI_MAX_OUTPUT_TOKENS=2000
+AI_TEMPERATURE=0.7
 ```
 
 ### Ports

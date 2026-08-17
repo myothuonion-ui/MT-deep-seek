@@ -47,6 +47,7 @@ jobs:
         run: |
           docker run --rm --entrypoint python mt-deep-seek:hardened-ci scripts/verify_reproducible.py
           docker run --rm --entrypoint python mt-deep-seek:hardened-ci -c "import core.validators, ai.connector; print('container import smoke: PASS')"
+          docker run --rm --entrypoint nmap mt-deep-seek:hardened-ci --version
       - name: Upload security reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

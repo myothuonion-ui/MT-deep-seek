@@ -6,7 +6,14 @@ required = {
     "core/validators.py": ["AUTO_DENIED_BINARIES", "ALLOW_UNSCOPED_TARGETS"],
     "core/threat_intel.py": ["_url_is_public", "follow_redirects=False"],
     "core/report_generator.py": ["_display_secret", "INCLUDE_SECRETS_IN_REPORTS"],
-    "ai/connector.py": ["Literal[\"low\", \"medium\", \"high\"]", "UNTRUSTED_SESSION_MEMORY"],
+    "ai/connector.py": [
+        "Literal[\"low\", \"medium\", \"high\"]",
+        "UNTRUSTED_SESSION_MEMORY",
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        '"nvidia": api_key or os.getenv("NVIDIA_API_KEY")',
+        '"gemini": api_key or os.getenv("GEMINI_API_KEY")',
+    ],
     "Dockerfile.hardened": ["pip install --no-deps -r /app/requirements.lock", "USER 10001:10001"],
     "compose.hardened.yml": [
         "read_only: true",
@@ -15,6 +22,8 @@ required = {
         "no-new-privileges:true",
         "SCOPE_ALLOWLIST: ${SCOPE_ALLOWLIST:?",
         '"127.0.0.1:6000:6000"',
+        "NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}",
+        "GEMINI_API_KEY: ${GEMINI_API_KEY:-}",
     ],
     "start.sh": ["requirements.lock", "pip install --no-deps -r requirements.lock"],
 }

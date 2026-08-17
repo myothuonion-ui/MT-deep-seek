@@ -26,14 +26,51 @@ reviewed environment decision.
 
 ## Start
 
-Set a strong API token and an explicit authorized scope, then start the hardened
-profile:
+Set a strong API token and an explicit authorized scope, choose an AI provider,
+then start the hardened profile.
+
+### NVIDIA hosted NIM (GLM-5.2 default)
 
 ```bash
 export API_AUTH_TOKEN='replace-with-a-long-random-secret'
 export SCOPE_ALLOWLIST='10.10.10.0/24,lab.example'
+export AI_PROVIDER='nvidia'
+export NVIDIA_API_KEY='nvapi-...'
+export NVIDIA_MODEL='z-ai/glm-5.2'
 docker compose -f compose.hardened.yml up --build
 ```
+
+The NVIDIA model can be changed without code changes, for example to another
+model enabled for the same key:
+
+```bash
+export NVIDIA_MODEL='deepseek-ai/deepseek-v4-pro'
+```
+
+### Gemini
+
+```bash
+export API_AUTH_TOKEN='replace-with-a-long-random-secret'
+export SCOPE_ALLOWLIST='10.10.10.0/24,lab.example'
+export AI_PROVIDER='gemini'
+export GEMINI_API_KEY='...'
+export GEMINI_MODEL='gemini-3.6-flash'
+docker compose -f compose.hardened.yml up --build
+```
+
+### Local Ollama
+
+```bash
+export API_AUTH_TOKEN='replace-with-a-long-random-secret'
+export SCOPE_ALLOWLIST='10.10.10.0/24,lab.example'
+export AI_PROVIDER='local'
+export OLLAMA_MODEL='deepseek-r1:8b'
+docker compose -f compose.hardened.yml up --build
+```
+
+NVIDIA and Gemini are never auto-selected merely because their API keys are
+present. `AI_PROVIDER` must explicitly select them, which prevents a new secret
+from silently rerouting engagement context to a cloud service.
 
 The UI remains available only on the local machine:
 
