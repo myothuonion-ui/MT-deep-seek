@@ -5,64 +5,85 @@
 # KMN-CyberSeek
 
 ![Version](https://img.shields.io/badge/Version-2.3.3-brightgreen)
-![Python](https://img.shields.io/badge/Python-3.8%2B-green)
+![Python](https://img.shields.io/badge/Python-3.10%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-AI-driven autonomous penetration testing framework. Executes a full offensive engagement pipeline — OSINT → exploitation — using an LLM (DeepSeek API or local Ollama) with human-in-the-loop approval for high-risk actions.
+AI-driven autonomous penetration testing framework. Executes an engagement pipeline from OSINT/recon through validation/exploitation using an LLM (DeepSeek API or local Ollama) with explicit authorization and safety controls.
 
-**Repository:** [https://github.com/KhitMinnyo/KMN-CyberSeek](https://github.com/KhitMinnyo/KMN-CyberSeek)
+**Upstream repository:** [https://github.com/KhitMinnyo/KMN-CyberSeek](https://github.com/KhitMinnyo/KMN-CyberSeek)
 
 ---
 
-## Recommended OS
+## Recommended hardened mode
 
-**Kali Linux** (all pentest tools pre-installed). Any Debian/Ubuntu-based distro with the standard security toolchain also works. macOS and plain Windows are not recommended.
+The strongest default runtime is `compose.hardened.yml`. It runs the application as a non-root user with a read-only root filesystem, dropped Linux capabilities, `no-new-privileges`, resource limits, localhost-only published ports and a mandatory explicit target scope.
+
+```bash
+export API_AUTH_TOKEN='replace-with-a-long-random-secret'
+export SCOPE_ALLOWLIST='10.10.10.0/24,lab.example'
+docker compose -f compose.hardened.yml up --build
+```
+
+Then open `http://127.0.0.1:8501`.
+
+The profile intentionally grants no raw-socket/elevated capabilities. Some low-level tools may therefore be unavailable or fall back to less privileged operation. Review `docs/hardened-runtime.md` before changing that boundary.
+
+---
+
+## Standard local installation
+
+**Prerequisites:** Python 3.10+, optional Nmap/security tooling, and Ollama or a DeepSeek API key if AI is required.
+
+```bash
+git clone https://github.com/myothuonion-ui/MT-deep-seek.git
+cd MT-deep-seek
+./start.sh
+```
+
+`start.sh` now requires the committed `requirements.lock` by default and installs it with `--no-deps`, preventing dependency resolution from drifting between runs. A development-only unlocked fallback requires explicit `ALLOW_UNLOCKED_INSTALL=true`.
 
 ---
 
 ## Architecture
 
-```
-Streamlit Frontend  (port 8501)
+```text
+Streamlit Frontend  (8501)
          │
-FastAPI Backend     (port 6000)
+FastAPI Backend     (6000)
    Orchestrator │ Scanner │ AI Connector │ SQLite DB
          │               │               │
-   AI Engine         Nmap/NSE        Shell Exec
-  DeepSeek/Ollama   VulnScripts      (Kali env)
+   AI Engine         Scan tools       Command execution
+  DeepSeek/Ollama                   inside runtime boundary
 ```
-
----
-
-## Installation
-
-**Prerequisites:** Python 3.8+, Nmap (`sudo apt install nmap`), Ollama or DeepSeek API key.
-
-```bash
-git clone https://github.com/KhitMinnyo/KMN-CyberSeek.git
-cd KMN-CyberSeek
-./start.sh
-```
-
-`start.sh` creates the venv, installs dependencies, resolves port conflicts, and launches both services.
 
 ---
 
 ## Quick Start
 
-1. Run `./start.sh`
-2. Open `http://localhost:8501`
-3. **Settings → AI Configuration** — connect Ollama or DeepSeek API key
-4. **New Session** — enter target IP / domain and confirm authorization
-5. Watch the session timeline advance through engagement phases
-6. Review **AI Decisions** — approve or let auto-approve handle it
-7. Monitor **Scan Results**, **Vulnerabilities**, **Credentials** as findings accumulate
+1. Set an explicit `SCOPE_ALLOWLIST` for systems you own or are authorized to test.
+2. Run the hardened Compose profile or `./start.sh`.
+3. Open `http://127.0.0.1:8501`.
+4. Configure Ollama/DeepSeek under **Settings → AI Configuration**.
+5. Create a session and confirm authorization.
+6. Review AI decisions, command approvals, scan results and evidence as the session progresses.
 
 ---
 
-## Configuration
+## Security defaults
 
-### AI — Ollama (local or remote)
+```env
+API_AUTH_TOKEN=
+BACKEND_HOST=127.0.0.1
+SCOPE_ALLOWLIST=
+ALLOW_UNSCOPED_TARGETS=false
+REQUIRE_APPROVAL_HIGH_RISK=true
+FULL_AUTO_MODE=false
+INCLUDE_SECRETS_IN_REPORTS=false
+```
+
+An empty `SCOPE_ALLOWLIST` denies targets unless the unsafe development override is deliberately enabled. The hardened Compose profile requires a non-empty allowlist before it will start.
+
+### AI — Ollama
 
 ```env
 AI_PROVIDER=local
@@ -70,8 +91,6 @@ OLLAMA_URL=http://192.168.1.50:11434
 OLLAMA_MODEL=deepseek-r1:8b
 OLLAMA_CONTEXT_WINDOW=8192
 ```
-
-Remote Ollama host: `OLLAMA_HOST=0.0.0.0 ollama serve`
 
 ### AI — DeepSeek API
 
@@ -86,69 +105,41 @@ DEEPSEEK_MODEL=deepseek-chat
 ```env
 BACKEND_PORT=6000
 FRONTEND_PORT=8501
+DOCS_PORT=3500
 ```
 
-### Security
+---
 
-```env
-API_AUTH_TOKEN=          # auto-generated on first run
-BACKEND_HOST=127.0.0.1
-REQUIRE_APPROVAL_HIGH_RISK=true
-APPROVAL_TIMEOUT_MINUTES=15
-SCOPE_ALLOWLIST=10.0.0.0/8,lab.local
+## Reproducible builds and CI
+
+- `requirements.lock` contains the exact Python dependency snapshot.
+- `scripts/verify_reproducible.py` rejects ranges, VCS/URL lock entries and missing direct dependencies.
+- `Dockerfile.hardened` installs the lock with `--no-deps` and runs as UID/GID 10001.
+- GitHub Actions references are pinned to immutable commit SHAs.
+- `pip-audit` is a blocking dependency-vulnerability gate.
+- CI builds and smoke-tests the hardened image on every `main`/`agent/**` change.
+
+---
+
+## Benchmark evidence
+
+The documented v2.2.7 pre-coverage-engine baseline is **45.7% touched / 2.9% confirmed**. A current score is not guessed from tests or code inspection; it must come from a fresh authorized-lab report.
+
+```bash
+python benchmarks/record_evidence.py /path/to/current_report.md \
+  --lab benchmarks/labs/kmn_training_win.json \
+  --out benchmarks/evidence/current_score.json
 ```
 
-### Full Auto Mode
-
-```env
-FULL_AUTO_MODE=false   # true = no approval prompts — isolated labs only
-```
-
-### Advanced tuning (optional)
-
-All have sensible defaults; set only if needed.
-
-```env
-# Autonomous shell capture — the managed multi/handler the AI delivers shells to
-EXPLOIT_LHOST=            # default: auto-detected local IP (set if it guesses wrong)
-EXPLOIT_LPORT=4444
-EXPLOIT_PAYLOAD=          # default: guessed from target OS
-
-# CVE enrichment (NVD). Free key raises the rate limit and avoids HTTP 429.
-NVD_API_KEY=             # https://nvd.nist.gov/developers/request-an-api-key
-NVD_MIN_INTERVAL=6.5     # seconds between NVD calls when no key is set
-
-# Scan / command timeouts (seconds)
-SCAN_TIMEOUT=300
-VULN_SCAN_TIMEOUT=120
-COMMAND_TIMEOUT=600
-
-# Agentic-loop safety
-MAX_AUTO_PIVOTS=6        # auto-pivots before pausing for manual review
-MAX_EMPTY_RETRIES=3      # retries when the model returns no command
-WATCHDOG_STALL_SECONDS=  # default: COMMAND_TIMEOUT + 180 (stuck-session revival)
-
-# Coverage engine — methodology-driven per-service playbooks, known-exploit hints,
-# coverage-derived progress. ON by default; toggle live in Settings → Engine Features
-# (no .env editing needed). Target-agnostic.
-COVERAGE_ENGINE=true
-
-# Decoupled brute-force worker — background credential brute-force on discovered
-# auth services (SSH/FTP/RDP/MySQL/SMB/WinRM). ON by default; toggle in Settings.
-BRUTEFORCE_ENABLED=true
-BRUTEFORCE_TIER=default            # default | rockyou | full
-BRUTEFORCE_MAX_SECONDS_PER_SERVICE=600
-BRUTEFORCE_CONCURRENCY=2
-```
-
-> **Tip:** Coverage Engine, Brute-force, and Full-Auto mode can be toggled at
-> runtime from **Settings → Engine Features** — changes apply immediately and are
-> saved to `.env` automatically, so end users never need to edit files.
+Only score/provenance metadata is committed. The raw report stays outside Git because it may contain sensitive engagement data. See `benchmarks/README.md` and `benchmarks/evidence/README.md`.
 
 ---
 
 ## Further Reading
 
+- [Security hardening](SECURITY_HARDENING.md)
+- [Hardened runtime](docs/hardened-runtime.md)
+- [Coverage benchmarks](benchmarks/README.md)
 - [Features & Architecture Detail](features.md)
 - [Changelog](change_log.md)
 
@@ -158,7 +149,7 @@ BRUTEFORCE_CONCURRENCY=2
 
 **For authorised security testing and educational purposes only.**
 
-Only use against systems you own or have explicit written permission to test. The developers assume no liability for misuse or damage. `FULL_AUTO_MODE=true` executes destructive commands without confirmation — isolated lab environments only.
+Only use against systems you own or have explicit written permission to test. The developers assume no liability for misuse or damage. Full-auto operation should be confined to isolated, explicitly authorized lab environments.
 
 ---
 
