@@ -1,5 +1,3 @@
-import os
-
 from ai.connector import KMN_AI_Connector
 
 
@@ -20,7 +18,7 @@ def _clear_provider_env(monkeypatch):
 def test_nvidia_provider_uses_official_openai_compatible_endpoint(monkeypatch):
     _clear_provider_env(monkeypatch)
     monkeypatch.setenv("AI_PROVIDER", "nvidia")
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-valid-key-1234567890")
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-valid-key-1234567890")
 
     connector = KMN_AI_Connector()
 
@@ -35,7 +33,7 @@ def test_nvidia_provider_uses_official_openai_compatible_endpoint(monkeypatch):
 def test_nvidia_model_is_operator_configurable(monkeypatch):
     _clear_provider_env(monkeypatch)
     monkeypatch.setenv("AI_PROVIDER", "nvidia")
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-valid-key-1234567890")
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-valid-key-1234567890")
     monkeypatch.setenv("NVIDIA_MODEL", "deepseek-ai/deepseek-v4-pro")
 
     connector = KMN_AI_Connector()
@@ -47,7 +45,7 @@ def test_nvidia_model_is_operator_configurable(monkeypatch):
 def test_gemini_provider_uses_google_openai_compatible_endpoint(monkeypatch):
     _clear_provider_env(monkeypatch)
     monkeypatch.setenv("AI_PROVIDER", "gemini")
-    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test-valid-key-1234567890")
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-valid-key-1234567890")
 
     connector = KMN_AI_Connector()
 
@@ -62,7 +60,7 @@ def test_gemini_provider_uses_google_openai_compatible_endpoint(monkeypatch):
 
 def test_deepseek_alias_preserves_existing_api_provider_behavior(monkeypatch):
     _clear_provider_env(monkeypatch)
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test-real-looking-key-1234567890")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-real-looking-key-1234567890")
 
     connector = KMN_AI_Connector(provider="deepseek")
 
@@ -86,8 +84,8 @@ def test_cloud_provider_without_valid_key_fails_closed_to_local(monkeypatch):
 
 def test_new_cloud_secret_does_not_silently_change_provider(monkeypatch):
     _clear_provider_env(monkeypatch)
-    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test-valid-key-1234567890")
-    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test-valid-key-1234567890")
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-valid-key-1234567890")
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-valid-key-1234567890")
 
     connector = KMN_AI_Connector()
 
