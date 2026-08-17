@@ -15,7 +15,7 @@ jobs:
     env:
       UPSTREAM_REPO: https://github.com/KhitMinnyo/KMN-CyberSeek.git
       UPSTREAM_COMMIT: 3e8b08a36c6af989f30c1d564f1a1c00579dbf43
-      ALLOW_UNSCOPED_TARGETS: "true" # test harness only; production default stays false
+      ALLOW_UNSCOPED_TARGETS: "true"
     steps:
       - name: Checkout target repository
         uses: actions/checkout@v4
@@ -43,6 +43,9 @@ jobs:
 
       - name: Apply deterministic security hardening
         run: python scripts/harden_upstream.py
+
+      - name: Normalize generated hardened source
+        run: python scripts/post_harden_fix.py
 
       - name: Add hardened repository banner
         shell: python
