@@ -34,6 +34,7 @@ httptools==0.8.0
 httpx==0.28.1
 idna==3.18
 iniconfig==2.3.0
+invoke==3.0.3
 jiter==0.16.0
 jsonschema-specifications==2025.9.1
 jsonschema==4.26.0
@@ -47,7 +48,7 @@ narwhals==2.24.0
 numpy==2.4.6
 openai==2.54.0
 packageurl-python==0.17.6
-packaging==23.2
+packaging==26.3
 pandas==3.0.5
 paramiko==5.0.0
 pillow==12.3.0
@@ -100,3 +101,4 @@ uvloop==0.22.1
 watchdog==6.0.0
 watchfiles==1.2.0
 websockets==17.0.1
+wheel==0.47.0

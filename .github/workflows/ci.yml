@@ -15,40 +15,41 @@ jobs:
     env:
       ALLOW_UNSCOPED_TARGETS: "true" # test fixtures only
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install
+      - name: Install exact dependency snapshot
         shell: bash
         run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.lock ]; then
-            python -m pip install -r requirements.lock
-          elif [ -f requirements.txt ]; then
-            python -m pip install -r requirements.txt
-          fi
-          python -m pip install ruff bandit pip-audit
+          python -m pip install --no-deps -r requirements.lock
           python -m pip check
+      - name: Reproducibility gate
+        run: python scripts/verify_reproducible.py
       - name: Security gate
         run: python scripts/security_gate.py
       - name: Compile
-        run: python -m compileall -q ai core main.py frontend.py
+        run: python -m compileall -q ai core main.py frontend.py scripts benchmarks
       - name: Regression suite
         run: python tests/run_tests.py
       - name: Pytest
         run: python -m pytest -q
       - name: Ruff correctness checks
         run: ruff check . --select E9,F63,F7,F82
-      - name: Advisory security scans
-        shell: bash
+      - name: Dependency vulnerability gate
+        run: pip-audit -r requirements.lock -f json -o pip-audit.json
+      - name: Bandit advisory scan
+        run: bandit -q -r ai core main.py scripts -x tests -f json -o bandit-report.json || true
+      - name: Build hardened runtime image
+        run: docker build -f Dockerfile.hardened -t mt-deep-seek:hardened-ci .
+      - name: Hardened image smoke check
         run: |
-          pip-audit -r requirements.lock -f json -o pip-audit.json || true
-          bandit -q -r ai core main.py -x tests -f json -o bandit-report.json || true
-      - name: Upload advisory reports
+          docker run --rm --entrypoint python mt-deep-seek:hardened-ci scripts/verify_reproducible.py
+          docker run --rm --entrypoint python mt-deep-seek:hardened-ci -c "import core.validators, ai.connector; print('container import smoke: PASS')"
+      - name: Upload security reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-advisory-reports
           path: |

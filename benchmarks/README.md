@@ -22,7 +22,7 @@ python benchmarks/score.py report.md --lab benchmarks/labs/kmn_training_win.json
 ## Labs
 - `labs/kmn_training_win.json` — Windows Server 2019 training lab (192.168.100.194), 35 ground-truth items across 5 categories.
 
-## Baseline (pre-coverage-engine, v2.2.7)
+## Historical baseline (pre-coverage-engine, v2.2.7)
 
 Scored against the 2026-08-13 autonomous run (`Win-Server_3f66b862`):
 
@@ -41,7 +41,25 @@ By category (touched / total):
 | remote_admin_db | 5 / 9 | MySQL root **confirmed**; no brute-force (SSH/RDP/WinRM) |
 | windows_system | 0 / 6 | no post-exploitation → no internal findings |
 
-**Targets after the coverage engine:** raise *touched* toward ~90% (playbooks
-guarantee every service is worked) and *confirmed* substantially (validation +
-exploit mapping + post-ex). Re-run `score.py` after each milestone and record the
-delta in that milestone's changelog note.
+## Current evidence policy
+
+A post-hardening/current score is only considered valid when it comes from a fresh
+run against an authorized lab. Do **not** infer a score from unit tests, playbook
+coverage, or code inspection.
+
+Record a real run without committing the sensitive raw report:
+
+```bash
+python benchmarks/record_evidence.py /path/to/current_report.md \
+  --lab benchmarks/labs/kmn_training_win.json \
+  --out benchmarks/evidence/current_score.json
+```
+
+The resulting JSON stores only score/provenance metadata: code commit, UTC time,
+report SHA-256, lab SHA-256, category scores and touched/confirmed percentages.
+See `benchmarks/evidence/README.md`.
+
+**Target after the coverage engine:** raise *touched* toward ~90% and improve
+*confirmed* substantially. Until `benchmarks/evidence/current_score.json` exists
+from a fresh authorized-lab run, the repository should report the current live
+benchmark as **pending**, not as an estimated or manufactured number.

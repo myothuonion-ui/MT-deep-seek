@@ -1,0 +1,33 @@
+FROM python:3.11.13-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DB_PATH=/app/data/kmn_cyberseek.db \
+    LOG_FILE=/app/data/backend.log \
+    BACKEND_HOST=0.0.0.0 \
+    BACKEND_PORT=6000 \
+    FRONTEND_PORT=8501 \
+    DOCS_PORT=3500
+
+RUN groupadd --gid 10001 kmn \
+    && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin kmn
+
+WORKDIR /app
+
+COPY requirements.lock /app/requirements.lock
+RUN python -m pip install --no-deps -r /app/requirements.lock \
+    && python -m pip check
+
+COPY --chown=10001:10001 . /app
+RUN mkdir -p /app/data && chown 10001:10001 /app/data
+
+USER 10001:10001
+
+EXPOSE 6000 8501 3500
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:6000/health', timeout=3).read()" || exit 1
+
+CMD ["python", "scripts/run_container.py"]

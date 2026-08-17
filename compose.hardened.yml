@@ -1,0 +1,46 @@
+services:
+  kmn:
+    build:
+      context: .
+      dockerfile: Dockerfile.hardened
+    image: mt-deep-seek:hardened
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m,mode=1777
+      - /home/kmn/.cache:rw,nosuid,nodev,size=64m,mode=0700
+    volumes:
+      - kmn-data:/app/data
+    environment:
+      API_AUTH_TOKEN: ${API_AUTH_TOKEN:?Set API_AUTH_TOKEN before starting hardened mode}
+      SCOPE_ALLOWLIST: ${SCOPE_ALLOWLIST:?Set an explicit authorized target allowlist}
+      ALLOW_UNSCOPED_TARGETS: "false"
+      FULL_AUTO_MODE: ${FULL_AUTO_MODE:-false}
+      AI_PROVIDER: ${AI_PROVIDER:-local}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-deepseek-r1:8b}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      INCLUDE_SECRETS_IN_REPORTS: "false"
+      DB_PATH: /app/data/kmn_cyberseek.db
+      LOG_FILE: /app/data/backend.log
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: "6000"
+      FRONTEND_PORT: "8501"
+      DOCS_PORT: "3500"
+    ports:
+      - "127.0.0.1:6000:6000"
+      - "127.0.0.1:8501:8501"
+      - "127.0.0.1:3500:3500"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    restart: "no"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  kmn-data:

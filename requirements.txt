@@ -2,8 +2,8 @@
 # Compatible with Python 3.10+
 
 # Build tools
-packaging==23.2
-wheel==0.45.0
+packaging==26.3
+wheel==0.47.0
 
 # FastAPI backend dependencies
 # 0.140.0 is a current 2026 release and resolves the old 0.104.x security exposure.
