@@ -1,3 +1,167 @@
-# MT-deep-seek
+# MT-deep-seek — Hardened KMN-CyberSeek
 
-Security-hardened derivative workspace based on KMN-CyberSeek v2.3.3. This repository is intended for authorized security testing and defensive research only.
+> Security-hardened derivative pinned to upstream KMN-CyberSeek v2.3.3 (`3e8b08a...`). See `SECURITY_HARDENING.md`. Authorized security testing only.
+
+# KMN-CyberSeek
+
+![Version](https://img.shields.io/badge/Version-2.3.3-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.8%2B-green)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
+AI-driven autonomous penetration testing framework. Executes a full offensive engagement pipeline — OSINT → exploitation — using an LLM (DeepSeek API or local Ollama) with human-in-the-loop approval for high-risk actions.
+
+**Repository:** [https://github.com/KhitMinnyo/KMN-CyberSeek](https://github.com/KhitMinnyo/KMN-CyberSeek)
+
+---
+
+## Recommended OS
+
+**Kali Linux** (all pentest tools pre-installed). Any Debian/Ubuntu-based distro with the standard security toolchain also works. macOS and plain Windows are not recommended.
+
+---
+
+## Architecture
+
+```
+Streamlit Frontend  (port 8501)
+         │
+FastAPI Backend     (port 6000)
+   Orchestrator │ Scanner │ AI Connector │ SQLite DB
+         │               │               │
+   AI Engine         Nmap/NSE        Shell Exec
+  DeepSeek/Ollama   VulnScripts      (Kali env)
+```
+
+---
+
+## Installation
+
+**Prerequisites:** Python 3.8+, Nmap (`sudo apt install nmap`), Ollama or DeepSeek API key.
+
+```bash
+git clone https://github.com/KhitMinnyo/KMN-CyberSeek.git
+cd KMN-CyberSeek
+./start.sh
+```
+
+`start.sh` creates the venv, installs dependencies, resolves port conflicts, and launches both services.
+
+---
+
+## Quick Start
+
+1. Run `./start.sh`
+2. Open `http://localhost:8501`
+3. **Settings → AI Configuration** — connect Ollama or DeepSeek API key
+4. **New Session** — enter target IP / domain and confirm authorization
+5. Watch the session timeline advance through engagement phases
+6. Review **AI Decisions** — approve or let auto-approve handle it
+7. Monitor **Scan Results**, **Vulnerabilities**, **Credentials** as findings accumulate
+
+---
+
+## Configuration
+
+### AI — Ollama (local or remote)
+
+```env
+AI_PROVIDER=local
+OLLAMA_URL=http://192.168.1.50:11434
+OLLAMA_MODEL=deepseek-r1:8b
+OLLAMA_CONTEXT_WINDOW=8192
+```
+
+Remote Ollama host: `OLLAMA_HOST=0.0.0.0 ollama serve`
+
+### AI — DeepSeek API
+
+```env
+AI_PROVIDER=api
+DEEPSEEK_API_KEY=sk-...
+DEEPSEEK_MODEL=deepseek-chat
+```
+
+### Ports
+
+```env
+BACKEND_PORT=6000
+FRONTEND_PORT=8501
+```
+
+### Security
+
+```env
+API_AUTH_TOKEN=          # auto-generated on first run
+BACKEND_HOST=127.0.0.1
+REQUIRE_APPROVAL_HIGH_RISK=true
+APPROVAL_TIMEOUT_MINUTES=15
+SCOPE_ALLOWLIST=10.0.0.0/8,lab.local
+```
+
+### Full Auto Mode
+
+```env
+FULL_AUTO_MODE=false   # true = no approval prompts — isolated labs only
+```
+
+### Advanced tuning (optional)
+
+All have sensible defaults; set only if needed.
+
+```env
+# Autonomous shell capture — the managed multi/handler the AI delivers shells to
+EXPLOIT_LHOST=            # default: auto-detected local IP (set if it guesses wrong)
+EXPLOIT_LPORT=4444
+EXPLOIT_PAYLOAD=          # default: guessed from target OS
+
+# CVE enrichment (NVD). Free key raises the rate limit and avoids HTTP 429.
+NVD_API_KEY=             # https://nvd.nist.gov/developers/request-an-api-key
+NVD_MIN_INTERVAL=6.5     # seconds between NVD calls when no key is set
+
+# Scan / command timeouts (seconds)
+SCAN_TIMEOUT=300
+VULN_SCAN_TIMEOUT=120
+COMMAND_TIMEOUT=600
+
+# Agentic-loop safety
+MAX_AUTO_PIVOTS=6        # auto-pivots before pausing for manual review
+MAX_EMPTY_RETRIES=3      # retries when the model returns no command
+WATCHDOG_STALL_SECONDS=  # default: COMMAND_TIMEOUT + 180 (stuck-session revival)
+
+# Coverage engine — methodology-driven per-service playbooks, known-exploit hints,
+# coverage-derived progress. ON by default; toggle live in Settings → Engine Features
+# (no .env editing needed). Target-agnostic.
+COVERAGE_ENGINE=true
+
+# Decoupled brute-force worker — background credential brute-force on discovered
+# auth services (SSH/FTP/RDP/MySQL/SMB/WinRM). ON by default; toggle in Settings.
+BRUTEFORCE_ENABLED=true
+BRUTEFORCE_TIER=default            # default | rockyou | full
+BRUTEFORCE_MAX_SECONDS_PER_SERVICE=600
+BRUTEFORCE_CONCURRENCY=2
+```
+
+> **Tip:** Coverage Engine, Brute-force, and Full-Auto mode can be toggled at
+> runtime from **Settings → Engine Features** — changes apply immediately and are
+> saved to `.env` automatically, so end users never need to edit files.
+
+---
+
+## Further Reading
+
+- [Features & Architecture Detail](features.md)
+- [Changelog](change_log.md)
+
+---
+
+## Disclaimer
+
+**For authorised security testing and educational purposes only.**
+
+Only use against systems you own or have explicit written permission to test. The developers assume no liability for misuse or damage. `FULL_AUTO_MODE=true` executes destructive commands without confirmation — isolated lab environments only.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
