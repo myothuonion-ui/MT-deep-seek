@@ -16,10 +16,27 @@ services:
       SCOPE_ALLOWLIST: ${SCOPE_ALLOWLIST:?Set an explicit authorized target allowlist}
       ALLOW_UNSCOPED_TARGETS: "false"
       FULL_AUTO_MODE: ${FULL_AUTO_MODE:-false}
+
       AI_PROVIDER: ${AI_PROVIDER:-local}
+      AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-2000}
+      AI_TEMPERATURE: ${AI_TEMPERATURE:-0.7}
+
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-deepseek-r1:8b}
+      OLLAMA_CONTEXT_WINDOW: ${OLLAMA_CONTEXT_WINDOW:-8192}
+
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      DEEPSEEK_CONTEXT_WINDOW: ${DEEPSEEK_CONTEXT_WINDOW:-131072}
+
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-z-ai/glm-5.2}
+      NVIDIA_CONTEXT_WINDOW: ${NVIDIA_CONTEXT_WINDOW:-1000000}
+
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      GEMINI_CONTEXT_WINDOW: ${GEMINI_CONTEXT_WINDOW:-131072}
+
       INCLUDE_SECRETS_IN_REPORTS: "false"
       DB_PATH: /app/data/kmn_cyberseek.db
       LOG_FILE: /app/data/backend.log
