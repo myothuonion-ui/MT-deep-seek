@@ -1,8 +1,6 @@
 name: Bootstrap hardened source
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +8,6 @@ permissions:
 
 jobs:
   bootstrap:
-    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[hardened-bootstrap]') }}
     runs-on: ubuntu-24.04
     env:
       UPSTREAM_REPO: https://github.com/KhitMinnyo/KMN-CyberSeek.git
@@ -94,5 +91,5 @@ jobs:
             echo "No hardened tree changes to commit."
             exit 0
           fi
-          git commit -m "build: import pinned upstream + security hardening [hardened-bootstrap]"
+          git commit -m "build: refresh pinned upstream + security hardening [hardened-bootstrap]"
           git push origin HEAD:main
