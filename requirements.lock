@@ -48,7 +48,7 @@ narwhals==2.24.0
 numpy==2.4.6
 openai==2.54.0
 packageurl-python==0.17.6
-packaging==23.2
+packaging==26.3
 pandas==3.0.5
 paramiko==5.0.0
 pillow==12.3.0
