@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {"id":"mt-core","name":"MT Pentester Core","kind":"engine","source":"native","license":"MIT","status":"native","enabled_by_default":true,"mode_ceiling":"safe-active"},
+    {"id":"shannon","name":"Shannon","kind":"engine","source":"https://github.com/KeygraphHQ/shannon","license":"AGPL-3.0","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"lab-full"},
+    {"id":"strix","name":"Strix","kind":"engine","source":"https://github.com/usestrix/strix","license":"Apache-2.0","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"lab-full"},
+    {"id":"pentagi","name":"PentAGI","kind":"engine","source":"https://github.com/vxcontrol/pentagi","license":"MIT plus project notices","status":"reference-only","enabled_by_default":false,"mode_ceiling":"lab-full"},
+    {"id":"pentestgpt","name":"PentestGPT","kind":"engine","source":"https://github.com/GreyDGL/PentestGPT","license":"MIT","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"safe-active"},
+    {"id":"pentestagent","name":"PentestAgent","kind":"engine","source":"https://github.com/GH05TCREW/pentestagent","license":"MIT","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"safe-active"},
+    {"id":"nebula","name":"Nebula","kind":"engine","source":"https://github.com/berylliumsec/nebula","license":"BSD-2-Clause","status":"reference-only","enabled_by_default":false,"mode_ceiling":"safe-active"},
+    {"id":"hackingbuddy","name":"hackingBuddyGPT","kind":"engine","source":"https://github.com/ipa-lab/hackingBuddyGPT","license":"MIT","status":"reference-only","enabled_by_default":false,"mode_ceiling":"lab-full"},
+    {"id":"hexstrike","name":"HexStrike AI","kind":"engine","source":"https://github.com/0x4m4/hexstrike-ai","license":"MIT","status":"reference-only","enabled_by_default":false,"mode_ceiling":"lab-full"},
+    {"id":"cai","name":"Cybersecurity AI (CAI)","kind":"engine","source":"https://github.com/aliasrobotics/cai","license":"repository license","status":"blocked","enabled_by_default":false,"mode_ceiling":"disabled","reason":"Archived upstream with an unresolved command-injection advisory."},
+    {"id":"claude-bughunter","name":"Claude-BugHunter","kind":"skill-pack","source":"https://github.com/elementalsouls/Claude-BugHunter","license":"MIT code; CC-BY-4.0 content","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"safe-active"},
+    {"id":"trailofbits-skills","name":"Trail of Bits Skills","kind":"skill-pack","source":"https://github.com/trailofbits/skills","license":"CC-BY-SA-4.0","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"map-only"},
+    {"id":"communitytools","name":"Transilience CommunityTools","kind":"skill-pack","source":"https://github.com/transilienceai/communitytools","license":"MIT","status":"reference-only","enabled_by_default":false,"mode_ceiling":"safe-active"},
+    {"id":"pentest-agents","name":"Pentest Agents","kind":"skill-pack","source":"https://github.com/H-mmer/pentest-agents","license":"unverified","status":"blocked","enabled_by_default":false,"mode_ceiling":"disabled","reason":"No verified reusable license."},
+    {"id":"agentic-bug-hunter","name":"Agentic Bug Hunter","kind":"skill-pack","source":"https://github.com/Awarexone/Agentic-Bug-Hunter","license":"verify before reuse","status":"reference-only","enabled_by_default":false,"mode_ceiling":"safe-active"},
+    {"id":"nuclei-templates","name":"Nuclei Templates","kind":"tool","source":"https://github.com/projectdiscovery/nuclei-templates","license":"MIT","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"safe-active"},
+    {"id":"bbot","name":"BBOT","kind":"tool","source":"https://github.com/blacklanternsecurity/bbot","license":"GPL-3.0","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"map-only"},
+    {"id":"payloadsallthethings","name":"PayloadsAllTheThings","kind":"knowledge","source":"https://github.com/swisskyrepo/PayloadsAllTheThings","license":"MIT","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"safe-active"},
+    {"id":"hacktricks","name":"HackTricks","kind":"knowledge","source":"https://github.com/HackTricks-wiki/hacktricks","license":"verify pinned snapshot","status":"reference-only","enabled_by_default":false,"mode_ceiling":"map-only"},
+    {"id":"seclists","name":"SecLists","kind":"knowledge","source":"https://github.com/danielmiessler/SecLists","license":"MIT","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"safe-active"},
+    {"id":"owasp-wstg","name":"OWASP WSTG","kind":"knowledge","source":"https://github.com/OWASP/wstg","license":"CC-BY-SA-4.0","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"map-only"},
+    {"id":"cve-bench","name":"CVE-Bench","kind":"benchmark","source":"https://github.com/uiuc-kang-lab/cve-bench","license":"Apache-2.0","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"lab-full"},
+    {"id":"xbow-validation","name":"XBOW Validation Benchmarks","kind":"benchmark","source":"https://github.com/KeygraphHQ/xbow-validation-benchmarks","license":"Apache-2.0","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"lab-full"}
+  ]
+}

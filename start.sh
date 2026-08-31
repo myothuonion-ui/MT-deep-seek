@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# KMN-CyberSeek Startup Script
+# MT Pentester Startup Script
 # Starts FastAPI backend, Streamlit frontend and docs server.
 # Reproducibility policy: requirements.lock is required by default.
 
 set -u
 
-echo "🚀 Starting KMN-CyberSeek - AI-Driven Autonomous Red Team Operator"
+echo "🚀 Starting MT Pentester - AI-Driven Autonomous Red Team Operator"
 echo "================================================================"
 
 if ! command -v python3 &> /dev/null; then
@@ -138,7 +138,7 @@ DOCS_PID=$!
 
 sleep 3
 
-echo "✅ KMN-CyberSeek started successfully!"
+echo "✅ MT Pentester started successfully!"
 echo "   Dashboard:     http://localhost:${FRONTEND_PORT}"
 echo "   Documentation: http://localhost:${DOCS_PORT}"
 echo "   API Docs:      http://localhost:${BACKEND_PORT}/api/docs"

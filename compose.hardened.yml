@@ -1,9 +1,9 @@
 services:
-  kmn:
+  mt-pentester:
     build:
       context: .
       dockerfile: Dockerfile.hardened
-    image: mt-deep-seek:hardened
+    image: mt-pentester:hardened
     user: "10001:10001"
     read_only: true
     tmpfs:
@@ -20,6 +20,16 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-deepseek-r1:8b}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/auto}
+      NVIDIA_NIM_API_KEY: ${NVIDIA_NIM_API_KEY:-}
+      NVIDIA_NIM_MODEL: ${NVIDIA_NIM_MODEL:-nvidia/nemotron-3-super-120b-a12b}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
+      LITELLM_API_BASE: ${LITELLM_API_BASE:-http://host.docker.internal:4000/v1}
+      LITELLM_MODEL: ${LITELLM_MODEL:-planner-strong}
       INCLUDE_SECRETS_IN_REPORTS: "false"
       DB_PATH: /app/data/kmn_cyberseek.db
       LOG_FILE: /app/data/backend.log

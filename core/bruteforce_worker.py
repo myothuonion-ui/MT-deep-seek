@@ -1,5 +1,5 @@
 """
-KMN-CyberSeek Brute-force Worker (Coverage Engine — M5)
+MT Pentester Brute-force Worker (Coverage Engine — M5)
 
 A DECOUPLED credential producer. When the main engine discovers an auth service
 it hands a job to this worker; the worker brute-forces it in the background with

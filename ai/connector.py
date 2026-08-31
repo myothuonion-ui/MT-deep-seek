@@ -1,6 +1,7 @@
-"""
-KMN-CyberSeek AI Connector Module
-Supports both local Ollama (DeepSeek models) and DeepSeek API
+"""MT Pentester AI connector.
+
+Supports local Ollama plus DeepSeek, OpenRouter, NVIDIA NIM, Google Gemini,
+and a LiteLLM gateway through one OpenAI-compatible cloud path.
 """
 
 import json
@@ -10,12 +11,14 @@ import re
 from typing import Dict, List, Optional, Any, Literal
 
 from dotenv import load_dotenv
-# Force reload environment variables to ensure fresh values
-load_dotenv(override=True)
+# Load file-based defaults without replacing runtime-injected secrets.
+load_dotenv(override=False)
 
 import httpx
 import requests
 from pydantic import BaseModel, Field
+
+from .providers import get_provider, normalize_provider
 
 logger = logging.getLogger(__name__)
 
@@ -77,37 +80,33 @@ class AIResponse(BaseModel):
 
 
 class KMN_AI_Connector:
-    """Hybrid AI connector supporting local Ollama and DeepSeek API."""
+    """Backward-compatible connector for every MT Pentester AI provider."""
     
     def __init__(self, provider: str = None, api_key: Optional[str] = None,
                  local_model: Optional[str] = None, ollama_url: Optional[str] = None,
-                 api_model: Optional[str] = None):
+                 api_model: Optional[str] = None, api_base: Optional[str] = None):
         """
         Initialize AI connector.
 
         Args:
-            provider: "local" for Ollama, "api" for DeepSeek API. If None, auto-detects based on API key.
-            api_key: API key for DeepSeek API (optional, will check env vars if not provided)
+            provider: Provider code. ``api`` remains an alias for ``deepseek``.
+            api_key: Runtime-only provider credential. Falls back to that provider's
+                dedicated environment variable.
             local_model: Ollama model tag to use, e.g. "deepseek-r1:8b" or a security-tuned
                 model like "DeepHat/DeepHat-V1-7B". Falls back to OLLAMA_MODEL env var,
                 then a built-in default. Any model you've `ollama pull`ed works here.
             ollama_url: Base URL of the Ollama server, e.g. "http://localhost:11434".
                 Falls back to OLLAMA_URL env var, then localhost default.
-            api_model: DeepSeek API model name, e.g. "deepseek-chat" or "deepseek-coder".
-                Falls back to DEEPSEEK_MODEL env var, then a built-in default.
+            api_model: Cloud/gateway model name. Falls back to the selected
+                provider's model environment variable, then its default.
+            api_base: Optional endpoint override for self-hosted gateways.
         """
-        # Load environment variables fresh
-        load_dotenv(override=True)
+        # Reload file-based defaults, but never overwrite a runtime/Docker secret.
+        load_dotenv(override=False)
         
-        # Check for API key from parameter or environment variables
-        # Check both DEEPSEEK_API_KEY and OPENAI_API_KEY as mentioned in feedback
-        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY") or os.getenv("OPENAI_API_KEY")
-        
-        # Clean and validate API key
-        if self.api_key:
-            self.api_key = self.api_key.strip()
-            
-        # Define common placeholder patterns
+        # Define common placeholder patterns. Provider credentials are never
+        # borrowed from another provider (for example OPENAI_API_KEY); that can
+        # silently send engagement data to the wrong service.
         placeholder_patterns = [
             "your_deepseek_api_key_here",
             "your-api-key-here",
@@ -120,45 +119,59 @@ class KMN_AI_Connector:
             "insert_key_here"
         ]
         
-        # Explicit provider selection wins over key auto-detection. A stale cloud
-        # key must never silently override an operator-selected local provider.
-        is_valid_api_key = (
-            self.api_key and len(self.api_key) > 10 and
-            not any(pattern in self.api_key.lower() for pattern in placeholder_patterns)
+        configured_provider = (os.getenv("AI_PROVIDER") or "").strip()
+        requested_provider = normalize_provider(provider or configured_provider or "local")
+        self.provider_spec = get_provider(requested_provider)
+        self.provider = self.provider_spec.code
+
+        raw_key = api_key
+        if raw_key is None and self.provider_spec.api_key_env:
+            raw_key = os.getenv(self.provider_spec.api_key_env)
+        self.api_key = raw_key.strip() if raw_key else None
+        is_valid_api_key = bool(
+            self.api_key
+            and len(self.api_key) > 10
+            and not any(pattern in self.api_key.lower() for pattern in placeholder_patterns)
         )
-        configured_provider = (os.getenv("AI_PROVIDER") or "").strip().lower()
-        requested_provider = (provider or configured_provider or ("api" if is_valid_api_key else "local")).lower()
-        if requested_provider not in {"local", "api"}:
-            requested_provider = "local"
-        if requested_provider == "api" and is_valid_api_key:
-            self.provider = "api"
-        elif requested_provider == "api":
-            logger.warning("API provider selected without a valid API key; falling back to local.")
-            self.provider = "local"
+        if self.provider != "local" and not is_valid_api_key:
+            key_name = self.provider_spec.api_key_env or "provider credential"
+            logger.warning(
+                f"Provider '{self.provider}' selected without a valid {key_name}; "
+                "the backend will remain available for configuration but model calls will fail closed."
+            )
             self.api_key = None
-        else:
-            self.provider = "local"
+        if self.provider == "local":
             self.api_key = None
         logger.info(f"Using AI provider: {self.provider}")
 
-        # URLs for different providers - explicit args win, then env vars, then defaults.
-        ollama_base = (ollama_url or os.getenv("OLLAMA_URL") or "http://localhost:11434").strip().rstrip("/")
+        # URLs for different providers - explicit args win, then provider-specific
+        # environment variables, then reviewed defaults.
+        ollama_base = (
+            ollama_url or get_provider("local").resolved_api_base() or "http://localhost:11434"
+        ).strip().rstrip("/")
         if ollama_base.endswith("/api/generate"):
             ollama_base = ollama_base[: -len("/api/generate")].rstrip("/")
         self.ollama_url = f"{ollama_base}/api/generate"
-        self.deepseek_api_url = "https://api.deepseek.com/chat/completions"
+        cloud_base = (api_base or self.provider_spec.resolved_api_base() or "").strip().rstrip("/")
+        self.api_base = cloud_base or None
+        self.api_url = f"{cloud_base}/chat/completions" if cloud_base else None
+        # Compatibility attribute retained for older callers/tests.
+        self.deepseek_api_url = self.api_url
 
         # Default models - configurable so any Ollama model (e.g. a security-tuned model
         # like DeepHat/DeepHat-V1-7B) can be used without code changes.
-        self.local_model = local_model or os.getenv("OLLAMA_MODEL") or "deepseek-r1:8b"
-        self.api_model = api_model or os.getenv("DEEPSEEK_MODEL") or "deepseek-chat"
+        self.local_model = local_model or get_provider("local").resolved_model()
+        self.api_model = api_model or self.provider_spec.resolved_model()
         
         # ── Context-window budget ─────────────────────────────────────────────
         # Read from env; user should set this to their Ollama model's num_ctx.
         # Common values: 4096 (small models), 8192 (mid), 32768 (large).
         # For the DeepSeek API provider this is effectively unlimited — we use
         # a very large placeholder so all budget checks pass.
-        raw_ctx = os.getenv("OLLAMA_CONTEXT_WINDOW", "8192").strip()
+        raw_ctx = os.getenv(
+            "OLLAMA_CONTEXT_WINDOW" if self.provider == "local" else "AI_CONTEXT_WINDOW",
+            "8192" if self.provider == "local" else "131072",
+        ).strip()
         try:
             self.context_window: int = int(raw_ctx)
         except ValueError:
@@ -210,8 +223,8 @@ class KMN_AI_Connector:
         if custom:
             return custom
         from .prompts import SYSTEM_PROMPT, SYSTEM_PROMPT_COMPACT
-        if self.provider == "api":
-            # API provider has a large context — always use full prompt
+        if self.provider != "local":
+            # Cloud/gateway providers use the full policy prompt.
             return SYSTEM_PROMPT
         return SYSTEM_PROMPT_COMPACT if self.context_window < 8_000 else SYSTEM_PROMPT
 
@@ -312,13 +325,15 @@ class KMN_AI_Connector:
             raise ConnectionError(f"Failed to connect to local Ollama: {e}")
     
     async def ask_ai_api(self, prompt: str, session_id: Optional[str] = None, memory: Optional[str] = None) -> AIResponse:
-        """Query DeepSeek API.
+        """Query the selected OpenAI-compatible cloud provider or gateway.
 
         System prompt goes in the `system` role (not buried in the user message)
         so the model gives it maximum weight. Memory + context go in `user`.
         """
         if not self.api_key:
-            raise ValueError("DeepSeek API key is required for API provider")
+            raise ValueError(f"API key is required for provider '{self.provider}'")
+        if not self.api_url:
+            raise ValueError(f"API base URL is not configured for provider '{self.provider}'")
 
         try:
             from .prompts import SYSTEM_PROMPT
@@ -342,6 +357,11 @@ class KMN_AI_Connector:
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
             }
+            if self.provider == "openrouter":
+                headers["HTTP-Referer"] = os.getenv(
+                    "OPENROUTER_HTTP_REFERER", "https://github.com/myothuonion-ui/MT-deep-seek"
+                )
+                headers["X-OpenRouter-Title"] = "MT Pentester"
 
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -357,7 +377,14 @@ class KMN_AI_Connector:
             }
             
             async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(self.deepseek_api_url, json=payload, headers=headers)
+                response = await client.post(self.api_url, json=payload, headers=headers)
+                if response.status_code in {400, 422} and "response_format" in payload:
+                    # Some OpenAI-compatible models do not implement JSON mode.
+                    # Retry inference once without that optional parameter; tool
+                    # execution is not involved, so this cannot duplicate actions.
+                    fallback_payload = dict(payload)
+                    fallback_payload.pop("response_format", None)
+                    response = await client.post(self.api_url, json=fallback_payload, headers=headers)
                 response.raise_for_status()
                 
                 result = response.json()
@@ -379,9 +406,9 @@ class KMN_AI_Connector:
                     logger.error(f"AIResponse validation failed: {e} | data={ai_data}")
                     return None
                     
-        except httpx.RequestError as e:
-            logger.error(f"API request failed: {e}")
-            raise ConnectionError(f"Failed to connect to DeepSeek API: {e}")
+        except httpx.HTTPError as e:
+            logger.error(f"{self.provider} API request failed: {e}")
+            raise ConnectionError(f"Failed to connect to {self.provider}: {e}")
     
     def ask_ai(self, prompt: str, session_id: Optional[str] = None) -> AIResponse:
         """
@@ -390,7 +417,7 @@ class KMN_AI_Connector:
         'await ask_ai_async(...)' there instead. This wrapper is kept for
         standalone/CLI/test usage only.
         """
-        if self.provider == "api":
+        if self.provider != "local":
             import asyncio
             try:
                 asyncio.get_running_loop()
@@ -399,7 +426,7 @@ class KMN_AI_Connector:
                 return asyncio.run(self.ask_ai_api(prompt, session_id))
             else:
                 raise RuntimeError(
-                    "KMN_AI_Connector.ask_ai() is synchronous and cannot be called from "
+                    "MT AI connector ask_ai() is synchronous and cannot be called from "
                     "inside a running event loop. Use 'await ask_ai_async(...)' instead."
                 )
         else:
@@ -410,7 +437,7 @@ class KMN_AI_Connector:
         """
         Asynchronous AI query.
         """
-        if self.provider == "api":
+        if self.provider != "local":
             return await self.ask_ai_api(prompt, session_id, memory)
         else:
             # Run local query in thread pool to avoid blocking
@@ -436,7 +463,7 @@ class KMN_AI_Connector:
         Returns None on any failure (invalid JSON, network error, etc) - never raises.
         """
         try:
-            if self.provider == "api":
+            if self.provider != "local":
                 return await self._ask_raw_api(system_prompt, user_prompt)
             else:
                 import asyncio
@@ -459,6 +486,11 @@ class KMN_AI_Connector:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        if self.provider == "openrouter":
+            headers["HTTP-Referer"] = os.getenv(
+                "OPENROUTER_HTTP_REFERER", "https://github.com/myothuonion-ui/MT-deep-seek"
+            )
+            headers["X-OpenRouter-Title"] = "MT Pentester"
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -471,7 +503,7 @@ class KMN_AI_Connector:
         }
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(self.deepseek_api_url, json=payload, headers=headers)
+            response = await client.post(self.api_url, json=payload, headers=headers)
             response.raise_for_status()
             result = response.json()
             text = result['choices'][0]['message']['content']

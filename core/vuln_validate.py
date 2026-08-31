@@ -1,5 +1,5 @@
 """
-KMN-CyberSeek Vulnerability Validation (Coverage Engine — M2)
+MT Pentester Vulnerability Validation (Coverage Engine — M2)
 
 Cuts the false positives that dominated raw findings (e.g. Tomcat 3.x/4.x CVEs
 surfaced by unfiltered NVD keyword search against a Tomcat 8.5 target, or

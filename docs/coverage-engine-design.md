@@ -2,7 +2,7 @@
 
 **Status:** Draft (pre-implementation)
 **Target version:** 2.3.0
-**Author:** KMN-CyberSeek
+**Author:** MT Pentester
 **Last updated:** 2026-08-13
 
 ---

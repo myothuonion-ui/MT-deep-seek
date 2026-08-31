@@ -1,5 +1,5 @@
 """
-KMN-CyberSeek Orchestrator Module
+MT Pentester Orchestrator Module
 Manages penetration testing sessions, coordinates between AI, scanner, and execution.
 """
 
@@ -42,7 +42,14 @@ _CRED_PATTERNS: List[re.Pattern] = [
 from ai.connector import KMN_AI_Connector, AIResponse
 from core.scanner import Scanner
 from core.memory_index import FindingsIndex
-from core.validators import is_valid_target, is_target_in_scope, is_allowlisted_command, is_cidr
+from core.validators import (
+    autonomous_scope_rejection,
+    is_allowlisted_command,
+    is_cidr,
+    is_target_in_scope,
+    is_valid_target,
+    parse_autonomous_argv,
+)
 from core import cve_lookup
 from core import threat_intel
 from core.shell_manager import ShellManager, get_local_ip, COMMON_PAYLOADS
@@ -58,10 +65,9 @@ logger = logging.getLogger(__name__)
 # Configurable since brute-force/full-port-range tools can legitimately run long.
 COMMAND_TIMEOUT = int(os.getenv("COMMAND_TIMEOUT", "600"))
 
-# When FULL_AUTO_MODE=true the agentic loop bypasses keyword-based approval gates
-# and the binary allowlist — AI is trusted to execute any command it suggests
-# regardless of risk_level. The operator sets this deliberately in .env.
-# Session-level authorization_confirmed is still required to create a session.
+# FULL_AUTO_MODE bypasses keyword/risk approval, but never the structural
+# allowlist, per-command scope check, or argv-only autonomous execution boundary.
+# Session-level authorization_confirmed is also required to create a session.
 FULL_AUTO_MODE: bool = os.getenv("FULL_AUTO_MODE", "false").lower() == "true"
 
 # COVERAGE_ENGINE: when true, the orchestrator drives a per-service methodology
@@ -1714,9 +1720,9 @@ If Target Domain is provided ({session.target_domain}), ALWAYS use the domain na
                         if _allow_err:
                             self.queue_for_approval(session_id, _candidate)
                         else:
-                            asyncio.create_task(self.execute_command(session_id, _candidate))
+                            asyncio.create_task(self.execute_command(session_id, _candidate, execution_source="auto"))
                 else:
-                    asyncio.create_task(self.execute_command(session_id, _candidate))
+                    asyncio.create_task(self.execute_command(session_id, _candidate, execution_source="auto"))
             else:
                 self.queue_for_approval(session_id, _cmd)
                 logger.info(f"Initial command queued for approval: {_cmd[:100]}")
@@ -1960,8 +1966,13 @@ If Target Domain is provided ({session.target_domain}), ALWAYS use the domain na
 
         return command
 
-    async def execute_command(self, session_id: str, command: str) -> Dict:
-        """Execute a command and capture output."""
+    async def execute_command(self, session_id: str, command: str, execution_source: str = "manual") -> Dict:
+        """Execute a command and capture output.
+
+        Autonomous commands are structurally allowlisted, scope checked, parsed
+        to argv, and executed without a shell. ``manual``/``approved`` preserve
+        the operator's explicit review boundary for complex shell commands.
+        """
         session = self.sessions.get(session_id)
         if not session:
             raise ValueError(f"Session {session_id} not found")
@@ -1981,6 +1992,9 @@ If Target Domain is provided ({session.target_domain}), ALWAYS use the domain na
                 "return_code": -1,
                 "success": False,
             }
+
+        if execution_source not in {"auto", "manual", "approved"}:
+            raise ValueError(f"Unknown execution source: {execution_source}")
 
         command_id = str(uuid.uuid4())
         session.status = "executing"
@@ -2007,8 +2021,34 @@ If Target Domain is provided ({session.target_domain}), ALWAYS use the domain na
             # Mark any service this command targets as in_progress (state machine).
             self._mark_services_in_progress(session, command)
 
-            # Inject known credentials before execution so tools run non-interactively
+            # Inject known credentials before final validation so credentials are
+            # passed as literal argv values, never interpreted by a shell.
             command = self._inject_credentials(command, session)
+
+            auto_argv = None
+            child_env = None
+            if execution_source == "auto":
+                scope_error = autonomous_scope_rejection(command, os.getenv("SCOPE_ALLOWLIST"))
+                auto_argv, env_updates, argv_error = parse_autonomous_argv(command)
+                policy_error = scope_error or argv_error
+                if policy_error:
+                    logger.warning(
+                        f"Autonomous command blocked for session {session_id}: {policy_error}"
+                    )
+                    self.queue_for_approval(session_id, command)
+                    session.status = "ready"
+                    return {
+                        "command_id": command_id,
+                        "command": command,
+                        "output": "",
+                        "error": policy_error,
+                        "return_code": -1,
+                        "timestamp": datetime.now().isoformat(),
+                        "success": False,
+                        "queued_for_approval": True,
+                    }
+                child_env = os.environ.copy()
+                child_env.update(env_updates)
 
             # stdin=DEVNULL: close stdin so tools that prompt for a password
             # (smbclient, mysql, ftp, etc.) receive EOF instead of blocking on
@@ -2017,14 +2057,17 @@ If Target Domain is provided ({session.target_domain}), ALWAYS use the domain na
             # timeout can kill the WHOLE tree. Without it, process.kill() would
             # only kill the /bin/sh wrapper and leave the real tool (nmap, hydra,
             # smbclient…) orphaned and running.
-            process = await asyncio.create_subprocess_shell(
-                command,
-                stdin=asyncio.subprocess.DEVNULL,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd="/tmp",  # Safe directory
-                start_new_session=True,
-            )
+            process_kwargs = {
+                "stdin": asyncio.subprocess.DEVNULL,
+                "stdout": asyncio.subprocess.PIPE,
+                "stderr": asyncio.subprocess.PIPE,
+                "cwd": "/tmp",
+                "start_new_session": True,
+            }
+            if execution_source == "auto":
+                process = await asyncio.create_subprocess_exec(*auto_argv, env=child_env, **process_kwargs)
+            else:
+                process = await asyncio.create_subprocess_shell(command, **process_kwargs)
 
             # Stream stdout + stderr line-by-line, broadcasting each chunk to
             # WebSocket clients if a broadcast_callback is registered (set by
@@ -2552,7 +2595,9 @@ Domain rule: If Target Domain is provided ({session.target_domain}), use domain 
                     session.last_auto_success = False
 
                 logger.info(f"Auto-executing command for session {session_id} (depth: {session.auto_depth_counter}): {ai_response.suggested_command[:100]}...")
-                asyncio.create_task(self.execute_command(session_id, ai_response.suggested_command))
+                asyncio.create_task(
+                    self.execute_command(session_id, ai_response.suggested_command, execution_source="auto")
+                )
             elif not _queued_already:
                 # Manual mode (auto_approve=False, FULL_AUTO_MODE=False) and no prior queue call.
                 # Queue for operator review regardless of risk level — don't silently drop commands.
@@ -2601,7 +2646,9 @@ Domain rule: If Target Domain is provided ({session.target_domain}), use domain 
             session.auto_depth_counter = 0
 
         # Execute the command asynchronously
-        asyncio.create_task(self.execute_command(session_id, command_data["command"]))
+        asyncio.create_task(
+            self.execute_command(session_id, command_data["command"], execution_source="approved")
+        )
         
         # Update database
         try:
@@ -3404,7 +3451,7 @@ Domain rule: If Target Domain is provided ({session.target_domain}), use domain 
             if FULL_AUTO_MODE:
                 try:
                     asyncio.get_event_loop().create_task(
-                        self.execute_command(session_id, cmd)
+                        self.execute_command(session_id, cmd, execution_source="auto")
                     )
                 except RuntimeError:
                     # No running loop (e.g. called from sync test context) — queue instead.
@@ -5569,5 +5616,3 @@ Web apps: {webapps}
                 "status": "error",
                 "message": f"Failed to delete all sessions: {str(e)}"
             }
-
-

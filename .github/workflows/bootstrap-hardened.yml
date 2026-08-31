@@ -50,7 +50,7 @@ jobs:
           from pathlib import Path
           p = Path("README.md")
           body = p.read_text(encoding="utf-8")
-          banner = """# MT-deep-seek — Hardened KMN-CyberSeek\n\n> Security-hardened derivative pinned to upstream KMN-CyberSeek v2.3.3 (`3e8b08a...`). See `SECURITY_HARDENING.md`. Authorized security testing only.\n\n"""
+          banner = """# MT Pentester\n\n> Security-hardened derivative pinned to upstream KMN-CyberSeek v2.3.3 (`3e8b08a...`). See `SECURITY_HARDENING.md`. Authorized security testing only.\n\n"""
           if not body.startswith("# MT-deep-seek"):
               p.write_text(banner + body, encoding="utf-8")
 

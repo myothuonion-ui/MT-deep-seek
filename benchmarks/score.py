@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""KMN-CyberSeek engagement coverage scorer.
+"""MT Pentester engagement coverage scorer.
 
 Compares an autonomous engagement's report against a lab's ground-truth
 vulnerability set and prints a coverage score — so every future change can be

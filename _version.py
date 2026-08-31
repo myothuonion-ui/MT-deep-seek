@@ -1,4 +1,4 @@
-"""Single source of truth for the KMN-CyberSeek version.
+"""Single source of truth for the MT Pentester version.
 
 Update the version in ONE place — here — or run:
 
@@ -8,4 +8,4 @@ The frontend (sidebar/About), the FastAPI backend (/, OpenAPI), and the README
 badge all derive from this value, so they can never drift out of sync.
 """
 
-__version__ = "2.4.0-hardened.1"
+__version__ = "3.0.0-alpha.1"

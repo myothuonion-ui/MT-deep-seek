@@ -1,16 +1,12 @@
-# MT-deep-seek — Hardened KMN-CyberSeek
+# MT Pentester
 
-> Security-hardened derivative pinned to upstream KMN-CyberSeek v2.3.3 (`3e8b08a...`). See `SECURITY_HARDENING.md`. Authorized security testing only.
-
-# KMN-CyberSeek
-
-![Version](https://img.shields.io/badge/Version-2.3.3-brightgreen)
+![Version](https://img.shields.io/badge/Version-3.0.0-alpha.1-brightgreen)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-AI-driven autonomous penetration testing framework. Executes an engagement pipeline from OSINT/recon through validation/exploitation using an LLM (DeepSeek API or local Ollama) with explicit authorization and safety controls.
+Policy-gated, multi-provider AI penetration-testing platform for authorized environments. MT Pentester separates orchestration, model providers, capability plugins, evidence, and execution policy so new integrations do not bypass the security boundary.
 
-**Upstream repository:** [https://github.com/KhitMinnyo/KMN-CyberSeek](https://github.com/KhitMinnyo/KMN-CyberSeek)
+This project began as a security-hardened derivative of [KMN-CyberSeek](https://github.com/KhitMinnyo/KMN-CyberSeek), pinned to upstream v2.3.3 (`3e8b08a...`).
 
 ---
 
@@ -50,10 +46,12 @@ cd MT-deep-seek
 Streamlit Frontend  (8501)
          │
 FastAPI Backend     (6000)
-   Orchestrator │ Scanner │ AI Connector │ SQLite DB
-         │               │               │
-   AI Engine         Scan tools       Command execution
-  DeepSeek/Ollama                   inside runtime boundary
+   Orchestrator │ Policy Gate │ Evidence │ Plugin Registry
+          │           │
+   Provider-neutral   │──── typed argv for autonomous actions
+   AI Connector       │──── reviewed shell for human-approved actions
+          │
+ Ollama │ DeepSeek │ OpenRouter │ NVIDIA NIM │ Gemini │ LiteLLM
 ```
 
 ---
@@ -63,7 +61,7 @@ FastAPI Backend     (6000)
 1. Set an explicit `SCOPE_ALLOWLIST` for systems you own or are authorized to test.
 2. Run the hardened Compose profile or `./start.sh`.
 3. Open `http://127.0.0.1:8501`.
-4. Configure Ollama/DeepSeek under **Settings → AI Configuration**.
+4. Configure Ollama, DeepSeek, OpenRouter, NVIDIA NIM, Gemini, or LiteLLM under **Settings → AI Configuration**.
 5. Create a session and confirm authorization.
 6. Review AI decisions, command approvals, scan results and evidence as the session progresses.
 
@@ -92,13 +90,34 @@ OLLAMA_MODEL=deepseek-r1:8b
 OLLAMA_CONTEXT_WINDOW=8192
 ```
 
-### AI — DeepSeek API
+### AI — cloud and gateway providers
 
 ```env
-AI_PROVIDER=api
-DEEPSEEK_API_KEY=sk-...
-DEEPSEEK_MODEL=deepseek-chat
+# Pick one: deepseek, openrouter, nvidia_nim, gemini, litellm
+AI_PROVIDER=deepseek
+
+DEEPSEEK_API_KEY=
+DEEPSEEK_MODEL=deepseek-v4-flash
+
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=openrouter/auto
+
+NVIDIA_NIM_API_KEY=
+NVIDIA_NIM_MODEL=nvidia/nemotron-3-super-120b-a12b
+
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+
+LITELLM_MASTER_KEY=
+LITELLM_API_BASE=http://localhost:4000/v1
+LITELLM_MODEL=planner-strong
 ```
+
+Credentials are read from runtime environment variables or container secrets. The settings UI never writes API keys back to `.env`.
+
+### Capability registry
+
+`config/plugins.json` tracks the engines, skill packs, deterministic tools, knowledge sources, and benchmarks selected for the v3 roadmap. Its status field is authoritative: a roadmap/reference entry is not presented as a working integration.
 
 ### Ports
 
@@ -138,6 +157,7 @@ Only score/provenance metadata is committed. The raw report stays outside Git be
 ## Further Reading
 
 - [Security hardening](SECURITY_HARDENING.md)
+- [AI providers and LiteLLM](docs/ai-providers.md)
 - [Hardened runtime](docs/hardened-runtime.md)
 - [Coverage benchmarks](benchmarks/README.md)
 - [Features & Architecture Detail](features.md)

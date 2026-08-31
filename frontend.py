@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KMN-CyberSeek Streamlit Frontend
+MT Pentester Streamlit Frontend
 Web dashboard for AI-driven autonomous red team operations.
 """
 
@@ -62,7 +62,7 @@ def sync_main():
 
 # Page configuration
 st.set_page_config(
-    page_title="KMN-CyberSeek",
+    page_title="MT Pentester",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -71,9 +71,16 @@ st.set_page_config(
 # Custom CSS
 st.markdown("""
 <style>
+    :root {
+        --mt-cyan: #22d3ee;
+        --mt-violet: #8b5cf6;
+        --mt-panel: #111827;
+    }
     .main-header {
         font-size: 2.5rem;
-        color: #4CAF50;
+        background: linear-gradient(90deg, var(--mt-cyan), var(--mt-violet));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
         text-align: center;
         margin-bottom: 2rem;
     }
@@ -89,7 +96,7 @@ st.markdown("""
         padding: 1rem;
         border-radius: 0.5rem;
         margin-bottom: 1rem;
-        border-left: 4px solid #4CAF50;
+        border-left: 4px solid var(--mt-cyan);
     }
     .command-card {
         background-color: #262730;
@@ -574,7 +581,7 @@ def main():
     
     # Sidebar navigation
     with st.sidebar:
-        st.markdown("## 🛡️ KMN-CyberSeek")
+        st.markdown("## 🛡️ MT Pentester")
         st.caption(f"v{APP_VERSION} — AI-Driven Red Team Operator")
         st.markdown("---")
         
@@ -589,20 +596,25 @@ def main():
             if st.button("🔄 Retry Connection"):
                 st.rerun()
 
-        # AI status — check .env directly (no extra API call needed)
+        # AI status comes from the backend so runtime/Docker secrets can remain
+        # outside the frontend process and plaintext .env file.
         if backend_healthy:
-            _ev = dotenv_values(".env")
-            _provider   = _ev.get("AI_PROVIDER", "").strip()
-            _api_key    = _ev.get("DEEPSEEK_API_KEY", "").strip()
-            _ollama_mdl = _ev.get("OLLAMA_MODEL", "").strip()
-            _bad = ("your_deepseek", "your-api-key", "sk-xxx", "placeholder",
-                    "example", "changeme", "insert_key")
-            _api_ok   = (_provider == "api" and _api_key and len(_api_key) > 10
-                         and not any(p in _api_key.lower() for p in _bad))
-            _local_ok = (_provider == "local" and bool(_ollama_mdl))
-            _ai_ready = _api_ok or _local_ok
+            _ai_ready = False
+            _active_provider = "unknown"
+            try:
+                _provider_response = api_session.get(f"{API_BASE}/ai/providers", timeout=3)
+                if _provider_response.status_code == 200:
+                    _provider_data = _provider_response.json()
+                    _active_provider = _provider_data.get("active", "unknown")
+                    _active = next(
+                        (p for p in _provider_data.get("providers", []) if p.get("code") == _active_provider),
+                        {},
+                    )
+                    _ai_ready = bool(_active.get("configured"))
+            except Exception:
+                pass
             ai_icon   = "🟢" if _ai_ready else "🟡"
-            ai_label  = "AI Ready" if _ai_ready else "AI Not Configured"
+            ai_label  = f"AI Ready ({_active_provider})" if _ai_ready else "AI Not Configured"
             st.markdown(f"**AI Status:** {ai_icon} {ai_label}")
             if not _ai_ready:
                 st.caption("⚙️ Settings → AI Configuration")
@@ -611,16 +623,16 @@ def main():
         selected = option_menu(
             menu_title="Navigation",
             options=["Dashboard", "New Session", "Active Sessions", "Command Console",
-                     "Threat Intel", "Schedules", "History", "Docs", "Settings"],
+                     "Threat Intel", "Capabilities", "Schedules", "History", "Docs", "Settings"],
             icons=["speedometer2", "plus-circle", "list-task", "terminal",
-                   "search", "calendar-check", "clock-history", "book", "gear"],
+                   "search", "boxes", "calendar-check", "clock-history", "book", "gear"],
             menu_icon="cast",
             default_index=0,
             styles={
                 "container": {"padding": "0!important"},
                 "icon": {"color": "orange", "font-size": "20px"},
                 "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px"},
-                "nav-link-selected": {"background-color": "#4CAF50"},
+                "nav-link-selected": {"background": "linear-gradient(90deg, #0891b2, #7c3aed)"},
             }
         )
         
@@ -649,7 +661,7 @@ def main():
         st.markdown("---")
         st.markdown("### ℹ️ About")
         st.markdown(f"""
-        KMN-CyberSeek is an AI-driven autonomous red team operator.
+        MT Pentester is an AI-driven autonomous red team operator.
 
         **Features:**
         - AI-powered reconnaissance
@@ -676,6 +688,8 @@ def main():
             show_command_console()
         elif selected == "Threat Intel":
             show_threat_intel()
+        elif selected == "Capabilities":
+            show_capabilities()
         elif selected == "Schedules":
             show_schedules()
         elif selected == "History":
@@ -871,7 +885,7 @@ def show_new_session():
             "I confirm I own this target or have explicit written authorization to test it, "
             "and I accept responsibility for this engagement.",
             value=False,
-            help="Required. KMN-CyberSeek will actively scan and may attempt exploitation against this target."
+            help="Required. MT Pentester will actively scan and may attempt exploitation against this target."
         )
 
         st.markdown("---")
@@ -2146,7 +2160,7 @@ def show_evidence(session_details: Dict):
 
             html = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
-<title>KMN-CyberSeek Report — {session_details.get('target_ip','')}</title>
+<title>MT Pentester Report — {session_details.get('target_ip','')}</title>
 <style>
   body{{font-family:sans-serif;margin:2rem;color:#222;}}
   h1{{background:#1a237e;color:#fff;padding:1rem;border-radius:4px;}}
@@ -2158,7 +2172,7 @@ def show_evidence(session_details: Dict):
   footer{{margin-top:3rem;font-size:.8em;color:#888;border-top:1px solid #ddd;padding-top:.5rem;}}
 </style></head>
 <body>
-<h1>KMN-CyberSeek &mdash; Penetration Test Report</h1>
+<h1>MT Pentester &mdash; Penetration Test Report</h1>
 <table class="meta">
   <tr><td>Session ID</td><td>{sid[:12]}</td></tr>
   <tr><td>Target</td><td>{session_details.get('target_ip','—')}</td></tr>
@@ -2174,7 +2188,7 @@ def show_evidence(session_details: Dict):
 <table><tr><th>Username</th><th>Secret</th><th>Type</th><th>Service</th></tr>{cred_rows or "<tr><td colspan='4'>None captured</td></tr>"}</table>
 <h2>Commands Log (last 30)</h2>
 <table><tr><th>OK</th><th>Command</th><th>Timestamp</th></tr>{cmd_rows or "<tr><td colspan='3'>None</td></tr>"}</table>
-<footer>Generated by KMN-CyberSeek &mdash; FOR AUTHORISED USE ONLY</footer>
+<footer>Generated by MT Pentester &mdash; FOR AUTHORISED USE ONLY</footer>
 </body></html>"""
             st.download_button(
                 label="💾 Save HTML",
@@ -2927,6 +2941,52 @@ def show_schedules():
                         st.error("Failed to delete.")
 
 
+def show_capabilities():
+    """Capability registry with implementation and license status."""
+    st.markdown("<h1 class='main-header'>🧩 Capabilities</h1>", unsafe_allow_html=True)
+    st.caption(
+        "Everything selected for MT Pentester v3 is visible here. "
+        "Only entries marked native are currently executable; planned/reference entries are not silently enabled."
+    )
+    if not check_backend_health():
+        st.error("Backend is not available. Please start the FastAPI server.")
+        return
+
+    try:
+        response = api_session.get(f"{API_BASE}/plugins", timeout=5)
+        response.raise_for_status()
+        catalog = response.json()
+    except Exception as exc:
+        st.error(f"Could not load capability registry: {exc}")
+        return
+
+    counts = catalog.get("counts", {})
+    cols = st.columns(4)
+    cols[0].metric("Native", counts.get("native", 0))
+    cols[1].metric("Adapters planned", counts.get("adapter-planned", 0))
+    cols[2].metric("Reference only", counts.get("reference-only", 0))
+    cols[3].metric("Blocked", counts.get("blocked", 0))
+
+    kind_filter = st.multiselect(
+        "Kinds",
+        ["engine", "skill-pack", "tool", "knowledge", "benchmark"],
+        default=["engine", "skill-pack", "tool", "knowledge", "benchmark"],
+    )
+    rows = []
+    for item in catalog.get("plugins", []):
+        if item.get("kind") not in kind_filter:
+            continue
+        rows.append({
+            "Name": item.get("name"),
+            "Kind": item.get("kind"),
+            "Status": item.get("status"),
+            "License": item.get("license"),
+            "Maximum mode": item.get("mode_ceiling"),
+            "Source": item.get("source"),
+        })
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+
+
 def show_history():
     """Session History page - all sessions from DB including completed/failed ones.
     Unlike Active Sessions (in-memory only), this queries the DB directly so
@@ -3135,7 +3195,7 @@ def show_docs():
     st.markdown(f"""
 <div style="text-align:center;padding:80px 20px">
     <div style="font-size:4rem;margin-bottom:16px">&#128218;</div>
-    <h2 style="color:#90caf9;margin-bottom:8px;font-family:sans-serif">KMN-CyberSeek Documentation</h2>
+    <h2 style="color:#90caf9;margin-bottom:8px;font-family:sans-serif">MT Pentester Documentation</h2>
     <p style="color:#b0bec5;margin-bottom:28px;font-family:sans-serif">
         Documentation runs on its own server to avoid connection issues.
     </p>
@@ -3210,8 +3270,8 @@ def show_settings():
     with tab2:
         st.markdown("### 🤖 AI Configuration")
         st.caption(
-            "These settings write directly to .env on the backend (created automatically if it "
-            "doesn't exist yet) - no manual file editing needed."
+            "Provider/model settings persist locally. API keys are runtime-only and are never "
+            "written back to .env; use environment variables or Docker secrets for restarts."
         )
 
         # Read current settings from .env (works fine if the file is empty/missing - all fields
@@ -3220,20 +3280,35 @@ def show_settings():
         env_vars = dotenv_values(env_path) if os.path.exists(env_path) else {}
 
         current_provider = env_vars.get("AI_PROVIDER", "local")
-        current_ds_key = env_vars.get("DEEPSEEK_API_KEY", "")
-        current_ds_model = env_vars.get("DEEPSEEK_MODEL", "deepseek-chat")
+        if current_provider == "api":  # migration alias from MT-deep-seek v2
+            current_provider = "deepseek"
         current_ollama_url = env_vars.get("OLLAMA_URL", "http://localhost:11434")
         current_ollama_model = env_vars.get("OLLAMA_MODEL", "deepseek-r1:8b")
 
-        ai_provider = st.selectbox(
-            "AI Provider",
-            ["Local (Ollama)", "DeepSeek API"],
-            index=1 if current_provider == "api" else 0,
-            help="Local (Ollama) keeps everything on your machine. DeepSeek API is faster but sends data to DeepSeek's servers."
+        provider_options = {
+            "Local (Ollama)": "local",
+            "DeepSeek API": "deepseek",
+            "OpenRouter": "openrouter",
+            "NVIDIA NIM": "nvidia_nim",
+            "Google Gemini": "gemini",
+            "LiteLLM Gateway": "litellm",
+        }
+        provider_labels = list(provider_options)
+        current_label = next(
+            (label for label, code in provider_options.items() if code == current_provider),
+            "Local (Ollama)",
         )
+        ai_provider_label = st.selectbox(
+            "AI Provider",
+            provider_labels,
+            index=provider_labels.index(current_label),
+            help="Cloud providers receive the context sent for model inference. Local Ollama keeps it on your machine.",
+        )
+        ai_provider = provider_options[ai_provider_label]
 
-        if ai_provider == "Local (Ollama)":
+        if ai_provider == "local":
             api_key = ""  # not used for local provider
+            api_base = ""
             ollama_url = st.text_input("Ollama URL", value=current_ollama_url)
 
             # ── Live model picker ─────────────────────────────────────────────
@@ -3352,18 +3427,60 @@ def show_settings():
             with col2:
                 max_tokens = st.number_input("Max Tokens", 100, 10000, 2000)
 
-        else:  # DeepSeek API
-            # Automatically populate the key if it exists in .env
-            api_key = st.text_input("API Key", value=current_ds_key, type="password")
-            model_name = st.text_input(
-                "Model",
-                value=current_ds_model,
-                help="e.g. deepseek-chat or deepseek-coder"
-            )
-            ollama_url = ""              # not applicable for this provider
-            ollama_context_window = None # not applicable
+        else:
+            provider_env = {
+                "deepseek": ("DEEPSEEK_MODEL", "deepseek-v4-flash", "DEEPSEEK_API_BASE", "https://api.deepseek.com"),
+                "openrouter": ("OPENROUTER_MODEL", "openrouter/auto", "OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"),
+                "nvidia_nim": ("NVIDIA_NIM_MODEL", "nvidia/nemotron-3-super-120b-a12b", "NVIDIA_NIM_API_BASE", "https://integrate.api.nvidia.com/v1"),
+                "gemini": ("GEMINI_MODEL", "gemini-2.5-flash", "GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta/openai"),
+                "litellm": ("LITELLM_MODEL", "planner-strong", "LITELLM_API_BASE", "http://localhost:4000/v1"),
+            }
+            model_env, default_model, base_env, default_base = provider_env[ai_provider]
+            current_model = env_vars.get(model_env, default_model)
+            current_base = env_vars.get(base_env, default_base)
 
-            st.info("DeepSeek API provides high-performance AI with specialized security knowledge.")
+            api_key = st.text_input(
+                "API Key (runtime only)",
+                value="",
+                type="password",
+                placeholder="Leave blank to use the server/Docker secret",
+            )
+            model_state_key = f"_cloud_models_{ai_provider}"
+            if st.button("📋 Load provider models", key=f"load_models_{ai_provider}"):
+                try:
+                    model_response = api_session.get(
+                        f"{API_BASE}/ai/models", params={"provider": ai_provider}, timeout=25
+                    )
+                    if model_response.status_code == 200:
+                        st.session_state[model_state_key] = model_response.json().get("models", [])
+                    else:
+                        st.warning(model_response.json().get("detail", "Model listing failed"))
+                except Exception as exc:
+                    st.warning(f"Model listing failed: {exc}")
+            st.caption("Model discovery uses the credential already configured in the backend; save a new key first.")
+
+            cloud_models = st.session_state.get(model_state_key, [])
+            if cloud_models:
+                default_index = cloud_models.index(current_model) if current_model in cloud_models else 0
+                model_name = st.selectbox(
+                    "Model",
+                    cloud_models,
+                    index=default_index,
+                    help="Live model list returned by the selected provider.",
+                )
+                if st.checkbox("Enter a model ID manually", key=f"manual_model_{ai_provider}"):
+                    model_name = st.text_input("Manual model ID", value=current_model)
+            else:
+                model_name = st.text_input(
+                    "Model",
+                    value=current_model,
+                    help="Use the exact provider model ID or a LiteLLM model alias.",
+                )
+            api_base = st.text_input("API Base", value=current_base)
+            ollama_url = ""
+            ollama_context_window = None
+
+            st.info(f"{ai_provider_label} is enabled through MT Pentester's provider-neutral connector.")
 
         # AI behavior settings
         st.markdown("### 🧠 AI Behavior")
@@ -3398,10 +3515,11 @@ def show_settings():
                 with st.spinner("Saving configuration..."):
                     payload = {
                         "provider": ai_provider,
-                        "api_key": api_key if ai_provider == "DeepSeek API" else "",
+                        "api_key": api_key if ai_provider != "local" else "",
                         "model_name": model_name,
-                        "ollama_url": ollama_url if ai_provider == "Local (Ollama)" else "",
-                        "ollama_context_window": ollama_context_window if ai_provider == "Local (Ollama)" else None,
+                        "api_base": api_base if ai_provider != "local" else "",
+                        "ollama_url": ollama_url if ai_provider == "local" else "",
+                        "ollama_context_window": ollama_context_window if ai_provider == "local" else None,
                     }
                     try:
                         response = api_session.post(f"{API_BASE}/settings/ai", json=payload)

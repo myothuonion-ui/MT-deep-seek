@@ -1,4 +1,4 @@
-# KMN-CyberSeek — Features & Architecture
+# MT Pentester — Features & Architecture
 
 ## Engagement Phases (Attack Chain)
 
@@ -206,7 +206,7 @@ All `/api/*` routes require the `X-API-Key` header (value from `API_AUTH_TOKEN` 
 ## Project Structure
 
 ```
-KMN-CyberSeek/
+MT Pentester/
 ├── main.py                  # FastAPI backend — API routes, startup, scheduler
 ├── frontend.py              # Streamlit dashboard
 ├── start.sh                 # Startup script (port management, venv, services)

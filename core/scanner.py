@@ -1,5 +1,5 @@
 """
-KMN-CyberSeek Scanner Module
+MT Pentester Scanner Module
 Handles network scanning and reconnaissance operations.
 """
 

@@ -1,4 +1,4 @@
-"""Scenario definitions for the KMN-CyberSeek reasoning eval harness.
+"""Scenario definitions for the MT Pentester reasoning eval harness.
 
 Each scenario freezes a realistic engagement state (as the orchestrator would
 present it) and asserts methodology properties about the AI's next-step decision.

@@ -1,10 +1,10 @@
-Project Name: KMN-CyberSeek
+Project Name: MT Pentester
 Concept: AI-Driven Autonomous Red Team Operator
 Base Vision: A superior alternative to PentestGPT with full automation, integrated execution, and a modern web dashboard.
 
 1. Core Objective
 Build an autonomous hacking framework that doesn't just suggest attacks (like PentestGPT) but actually executes them. It should take a target IP/Domain, perform reconnaissance, reason using LLMs (DeepSeek), and execute subsequent exploitation steps automatically or with human-in-the-loop approval.
-Prefer DeepSeek API keys for KMN-CyberSeek project.
+Prefer DeepSeek API keys for MT Pentester project.
 
 2. System Architecture
 Backend: Python (FastAPI) as the central orchestrator.

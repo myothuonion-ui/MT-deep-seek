@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KMN-CyberSeek Main Backend Server
+MT Pentester Main Backend Server
 FastAPI-based orchestrator for AI-driven autonomous red team operations.
 """
 
@@ -10,6 +10,7 @@ import logging
 import os
 import secrets
 import sys
+from urllib.parse import urlparse
 from dotenv import load_dotenv, set_key
 load_dotenv()
 from datetime import datetime
@@ -20,8 +21,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 import uvicorn
+import httpx
 
 from ai.connector import KMN_AI_Connector
+from ai.providers import get_provider, normalize_provider, public_provider_catalog
+from core.plugin_registry import PluginRegistry
 from core.orchestrator import Orchestrator
 from core.scanner import Scanner
 from core.validators import is_valid_target, is_cidr
@@ -90,7 +94,7 @@ if not API_AUTH_TOKEN:
 _OPEN_PATHS = {"/", "/health", "/api/docs", "/api/redoc", "/api/openapi.json"}
 
 app = FastAPI(
-    title="KMN-CyberSeek API",
+    title="MT Pentester API",
     on_startup=[],   # populated below after orchestrator is built
     description="AI-Driven Autonomous Red Team Operator Backend",
     version=APP_VERSION,
@@ -128,6 +132,7 @@ ai_provider = os.getenv("AI_PROVIDER")
 ai_connector = KMN_AI_Connector(provider=ai_provider)
 scanner = Scanner()
 orchestrator = Orchestrator(ai_connector, scanner)
+plugin_registry = PluginRegistry()
 
 # WebSocket connections
 active_connections: List[WebSocket] = []
@@ -267,9 +272,10 @@ _KNOWN_CTX: dict = {
 
 class AISettings(BaseModel):
     """AI settings update model."""
-    provider: str  # "Local (Ollama)" or "DeepSeek API"
+    provider: str
     api_key: str = ""
-    model_name: str = ""  # Ollama model tag OR DeepSeek model name, depending on provider
+    model_name: str = ""
+    api_base: str = ""
     ollama_url: str = ""
     ollama_context_window: Optional[int] = None  # if set, saved to .env + applied immediately
 
@@ -318,17 +324,68 @@ class ThreatIntelRequest(BaseModel):
 async def root():
     """Root endpoint with API information."""
     return {
-        "name": "KMN-CyberSeek",
+        "name": "MT Pentester",
         "version": APP_VERSION,
         "status": "operational",
         "endpoints": ["/api/docs", "/api/start", "/api/sessions", "/api/ws"],
-        "description": "AI-Driven Autonomous Red Team Operator"
+        "description": "Policy-gated AI penetration-testing platform"
     }
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/ai/providers")
+async def list_ai_providers():
+    """Return provider metadata without ever exposing credential values."""
+    return {
+        "active": ai_connector.provider,
+        "providers": public_provider_catalog(),
+    }
+
+
+@app.get("/api/ai/models")
+async def list_ai_models(provider: str):
+    """List cloud/gateway models using the provider's standard models endpoint."""
+    try:
+        provider_code = normalize_provider(provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if provider_code == "local":
+        raise HTTPException(status_code=422, detail="Use /api/ollama/models for local models")
+
+    spec = get_provider(provider_code)
+    api_key = os.getenv(spec.api_key_env or "", "").strip()
+    if provider_code == ai_connector.provider and ai_connector.api_key:
+        api_key = ai_connector.api_key
+    if not api_key:
+        raise HTTPException(status_code=400, detail=f"{provider_code} credential is not configured")
+
+    models_url = f"{spec.resolved_api_base()}/models"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    try:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=False) as client:
+            response = await client.get(models_url, headers=headers)
+            response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=f"Could not list {provider_code} models: {exc}") from exc
+
+    raw_models = payload.get("data", payload.get("models", [])) if isinstance(payload, dict) else []
+    names = []
+    for item in raw_models:
+        name = item.get("id") or item.get("name") if isinstance(item, dict) else str(item)
+        if name:
+            names.append(str(name))
+    return {"provider": provider_code, "models": sorted(set(names))[:1000]}
+
+
+@app.get("/api/plugins")
+async def list_plugins():
+    """Return the capability/integration manifest and its honest implementation status."""
+    return plugin_registry.public_catalog()
 
 @app.post("/api/start")
 async def start_session(target_request: TargetRequest):
@@ -1177,29 +1234,52 @@ async def get_ollama_model_info(model: str):
 
 @app.post("/api/settings/ai")
 async def update_ai_settings(settings: AISettings):
-    """Update AI settings (persisted to .env, works even if .env starts empty) and
-    reload the connector. Supports exactly two providers: DeepSeek API and local
-    Ollama (any model you've pulled, e.g. deepseek-r1:8b or a security-tuned model
-    like DeepHat/DeepHat-V1-7B)."""
+    """Reload the provider-neutral AI connector.
+
+    Provider/model/base URL are non-secret and may be persisted. Credentials are
+    runtime-only: production deployments must inject them through environment or
+    Docker secrets instead of writing plaintext keys to ``.env``.
+    """
     env_path = os.path.join(os.getcwd(), '.env')
     if not os.path.exists(env_path):
         open(env_path, 'w').close()
 
-    # Map the UI provider string to backend provider code
-    provider_code = "api" if "DeepSeek" in settings.provider else "local"
+    try:
+        provider_code = normalize_provider(settings.provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    provider_spec = get_provider(provider_code)
+
     set_key(env_path, "AI_PROVIDER", provider_code)
     os.environ["AI_PROVIDER"] = provider_code
 
     local_model = None
     ollama_url = None
     api_model = None
+    api_base = None
 
-    if provider_code == "api":
+    if provider_code != "local":
         if settings.api_key:
-            set_key(env_path, "DEEPSEEK_API_KEY", settings.api_key)
+            # Deliberately do not persist credentials in .env.
+            os.environ[provider_spec.api_key_env] = settings.api_key.strip()
         if settings.model_name:
-            set_key(env_path, "DEEPSEEK_MODEL", settings.model_name)
+            set_key(env_path, provider_spec.model_env, settings.model_name)
+            os.environ[provider_spec.model_env] = settings.model_name
             api_model = settings.model_name
+        if settings.api_base:
+            parsed = urlparse(settings.api_base)
+            is_local_gateway = provider_code == "litellm" and parsed.scheme == "http" and parsed.hostname in {
+                "localhost", "127.0.0.1", "llm-gateway", "host.docker.internal"
+            }
+            if parsed.scheme != "https" and not is_local_gateway:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Cloud provider API base must use HTTPS; LiteLLM may use HTTP only on an approved local host.",
+                )
+            if provider_spec.api_base_env:
+                set_key(env_path, provider_spec.api_base_env, settings.api_base.rstrip("/"))
+                os.environ[provider_spec.api_base_env] = settings.api_base.rstrip("/")
+            api_base = settings.api_base
     else:
         if settings.model_name:
             set_key(env_path, "OLLAMA_MODEL", settings.model_name)
@@ -1218,7 +1298,8 @@ async def update_ai_settings(settings: AISettings):
         api_key=settings.api_key or None,
         local_model=local_model,
         ollama_url=ollama_url,
-        api_model=api_model
+        api_model=api_model,
+        api_base=api_base,
     )
     orchestrator.ai_connector = ai_connector
 
@@ -1229,6 +1310,7 @@ async def update_ai_settings(settings: AISettings):
         "provider": provider_code,
         "model": ai_connector.local_model if provider_code == "local" else ai_connector.api_model,
         "context_window": ctx,
+        "credential_persisted": False,
     }
 
 @app.post("/api/settings/vulners")
@@ -1431,7 +1513,7 @@ def start_operation():
     host = os.getenv("BACKEND_HOST", "127.0.0.1")
     port = int(os.getenv("BACKEND_PORT", "6000"))
 
-    logger.info("Starting KMN-CyberSeek backend server...")
+    logger.info("Starting MT Pentester backend server...")
     logger.info(f"API Documentation: http://localhost:{port}/api/docs")
     logger.info(f"Streamlit Frontend: http://localhost:8501")
     if host != "127.0.0.1" and host != "localhost":

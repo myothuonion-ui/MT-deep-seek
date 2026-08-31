@@ -1,5 +1,5 @@
 """
-KMN-CyberSeek Hybrid Memory Index
+MT Pentester Hybrid Memory Index
 =================================
 
 A per-session retrieval index over engagement "findings" (command output

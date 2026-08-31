@@ -1,4 +1,4 @@
-# KMN-CyberSeek Reasoning Evals
+# MT Pentester Reasoning Evals
 
 A small harness that measures the **quality of the AI's next-step decisions**
 against fixed engagement scenarios, so a change to `ai/prompts.py` (or the model)

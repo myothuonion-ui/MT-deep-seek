@@ -1,8 +1,8 @@
-# Ollama Model Guide for KMN-CyberSeek
+# Ollama Model Guide for MT Pentester
 
 ## What the AI needs to do well
 
-KMN-CyberSeek depends on the model for three things, in order of importance:
+MT Pentester depends on the model for three things, in order of importance:
 
 1. **Structured JSON output** — every AI response must be valid JSON (`reasoning`, `suggested_command`, `risk_level`, `attack_phase`, `confidence`). A model that garbles this causes parse failures and halts the session.
 2. **Multi-step reasoning** — the model must plan a full attack chain (OSINT → Recon → Enum → Exploitation → Priv-Esc), not jump to the end in 3 commands.
@@ -47,7 +47,7 @@ Weaknesses:
 - Not cybersecurity-specialized (general model)
 - Requires more RAM (~9GB for Q4)
 
-### Verdict for KMN-CyberSeek
+### Verdict for MT Pentester
 
 **Use qwen2.5:14b as primary.**
 
@@ -104,7 +104,7 @@ Local models have a fixed context window. When the session's conversation histor
 - Stage regression (forgot it was in exploitation, goes back to recon)
 - Hallucinated progress (confused about what has actually run)
 
-KMN-CyberSeek has two built-in mitigations:
+MT Pentester has two built-in mitigations:
 
 1. **Episode summaries** — every N commands, old history is compressed into a summary and re-injected. Configured via `EPISODE_SIZE` env var.
 2. **Configurable context window** — Settings → AI Configuration → Context window (num_ctx). This directly tells Ollama how much to load into VRAM/unified memory.

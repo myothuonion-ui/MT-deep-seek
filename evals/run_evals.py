@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KMN-CyberSeek AI Reasoning Eval Harness
+MT Pentester AI Reasoning Eval Harness
 =======================================
 
 Measures the QUALITY of the AI's next-step decisions against fixed engagement
@@ -146,7 +146,7 @@ def run_selfcheck():
 
 
 def main():
-    ap = argparse.ArgumentParser(description="KMN-CyberSeek AI reasoning evals")
+    ap = argparse.ArgumentParser(description="MT Pentester AI reasoning evals")
     ap.add_argument("--runs", type=int, default=3, help="runs per scenario (provider mode)")
     ap.add_argument("--selfcheck", action="store_true", help="validate scoring rules offline")
     args = ap.parse_args()

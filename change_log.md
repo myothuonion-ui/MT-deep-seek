@@ -4,6 +4,29 @@ All notable changes are documented here. Follows [Keep a Changelog](https://keep
 
 ---
 
+## [3.0.0-alpha.1] — 2026-08-31 — MT Pentester foundation
+
+### Added
+- Provider-neutral AI registry for Ollama, DeepSeek, OpenRouter, NVIDIA NIM,
+  Google Gemini, and an optional LiteLLM gateway.
+- Runtime-only cloud credential updates; provider status APIs never return keys.
+- Validated capability manifest covering the selected engines, skills, tools,
+  knowledge packs, and benchmarks with explicit implementation/license status.
+- New **Capabilities** UI and MT Pentester visual identity.
+- Optional LiteLLM role-alias configuration and multi-provider deployment docs.
+
+### Security
+- Every autonomous command is now re-checked at the final execution boundary.
+- Autonomous commands run through `create_subprocess_exec(argv)` without a shell;
+  shell operators, interpreters, and `sudo` are routed to manual approval.
+- Explicit command targets are revalidated against `SCOPE_ALLOWLIST` immediately
+  before autonomous execution.
+- Manual/human-approved shell execution remains a separate, auditable boundary.
+
+### Changed
+- Application, UI, API, reports, and documentation are branded **MT Pentester**.
+- The default direct DeepSeek model is updated to `deepseek-v4-flash`.
+
 ## [2.3.3] — 2026-08-14
 
 ### Fixed
