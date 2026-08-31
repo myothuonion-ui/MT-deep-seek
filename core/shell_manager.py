@@ -1,5 +1,5 @@
 """
-KMN-CyberSeek Shell Session Manager
+MT Pentester Shell Session Manager
 
 Manages persistent Metasploit multi/handler processes and tracks active
 meterpreter / reverse-shell sessions that result from successful exploits.

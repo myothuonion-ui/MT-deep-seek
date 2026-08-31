@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""KMN-CyberSeek version bumper.
+"""MT Pentester version bumper.
 
 Usage:
     python bump_version.py              # print the current version

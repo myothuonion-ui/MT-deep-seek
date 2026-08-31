@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone documentation server for KMN-CyberSeek.
+"""Standalone documentation server for MT Pentester.
 
 Serves bilingual (EN / MY) documentation on port 3500.
 No Streamlit dependency — runs independently from start.sh.
@@ -645,7 +645,7 @@ def _build_html() -> str:
     )
     header = (
         '<div class="hdr">'
-        "<h1>&#128218; KMN-CyberSeek Documentation</h1>"
+        "<h1>&#128218; MT Pentester Documentation</h1>"
         '<button class="lang-toggle" onclick="toggleLang()">'
         '<span class="en">မြန်မာ</span><span class="my">English</span>'
         "</button>"
@@ -655,7 +655,7 @@ def _build_html() -> str:
         "<!DOCTYPE html><html lang='en'><head>"
         "<meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>KMN-CyberSeek Documentation</title>"
+        "<title>MT Pentester Documentation</title>"
         + _CSS
         + "</head><body>"
         + header

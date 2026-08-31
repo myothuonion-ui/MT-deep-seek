@@ -1,5 +1,5 @@
 """
-KMN-CyberSeek Validators Module
+MT Pentester Validators Module
 Centralized safety checks: target format validation, scope allowlisting, and a
 binary allowlist used to gate the fully-autonomous (zero-human-review) auto-execute path.
 
@@ -14,7 +14,9 @@ shrink blast radius for two realistic failure modes of an LLM-driven agent that 
 import ipaddress
 import os
 import re
-from typing import Optional
+import shlex
+from typing import Dict, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 # --- Target format validation -------------------------------------------------
 
@@ -121,7 +123,7 @@ def is_target_in_scope(target: Optional[str], allowlist_str: Optional[str]) -> b
 # Comprehensive Kali Linux toolset allowlist for the autonomous auto-execute path.
 # Covers recon, web-app, brute-force, exploitation, AD/SMB, post-exploitation,
 # wireless, forensics, scripting, and standard shell utilities.
-# When FULL_AUTO_MODE=true this list is bypassed entirely — see is_allowlisted_command().
+# FULL_AUTO_MODE never bypasses this list — see is_allowlisted_command().
 ALLOWED_BINARIES = {
     # ── Reconnaissance & scanning ───────────────────────────────────────
     "nmap", "masscan", "rustscan", "unicornscan",
@@ -324,4 +326,102 @@ def is_allowlisted_command(command: Optional[str]) -> Optional[str]:
         if binary not in ALLOWED_BINARIES:
             return f"Binary '{binary}' is not in the auto-execute allowlist"
 
+    return None
+
+
+def parse_autonomous_argv(command: Optional[str]) -> Tuple[List[str], Dict[str, str], Optional[str]]:
+    """Convert a single autonomous command into argv without invoking a shell.
+
+    Shell control operators are rejected. Leading ``NAME=value`` assignments are
+    returned separately so callers can build an explicit child environment.
+    Human-reviewed commands use a separate execution boundary.
+    """
+    rejection = is_allowlisted_command(command)
+    if rejection:
+        return [], {}, rejection
+
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars="|&;<>")
+        lexer.whitespace_split = True
+        tokens = list(lexer)
+    except ValueError as exc:
+        return [], {}, f"Invalid command quoting: {exc}"
+
+    shell_tokens = {"|", "||", "&", "&&", ";", "<", ">", "<<", ">>", "<>", ">&", "<&"}
+    bad = next((token for token in tokens if token in shell_tokens or set(token) <= set("|&;<>") and token), None)
+    if bad:
+        return [], {}, f"Shell operator '{bad}' requires human review"
+
+    env_updates: Dict[str, str] = {}
+    while tokens and _ENV_ASSIGNMENT_RE.match(tokens[0]):
+        name, value = tokens.pop(0).split("=", 1)
+        env_updates[name] = value
+
+    if not tokens:
+        return [], {}, "Command contains no executable"
+    if tokens[0] == "sudo":
+        return [], {}, "sudo requires human review in autonomous mode"
+
+    return tokens, env_updates, None
+
+
+_URL_RE = re.compile(r"https?://[^\s'\"]+", re.IGNORECASE)
+_SCOPED_VALUE_FLAGS = {"--host", "--hostname", "--target", "--url", "--domain", "--server"}
+
+
+def extract_command_targets(command: Optional[str]) -> List[str]:
+    """Best-effort extraction of explicit network targets from a command."""
+    if not command:
+        return []
+    found: List[str] = []
+
+    for match in _URL_RE.findall(command):
+        host = urlsplit(match.rstrip(").,;")).hostname
+        if host:
+            found.append(host)
+
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+
+    expect_scoped_value = False
+    for token in tokens:
+        if expect_scoped_value:
+            candidate = token.strip("[](),;'")
+            parsed = urlsplit(candidate if "://" in candidate else f"//{candidate}")
+            if parsed.hostname:
+                found.append(parsed.hostname)
+            expect_scoped_value = False
+            continue
+
+        if token in _SCOPED_VALUE_FLAGS:
+            expect_scoped_value = True
+            continue
+        if any(token.startswith(f"{flag}=") for flag in _SCOPED_VALUE_FLAGS):
+            value = token.split("=", 1)[1]
+            parsed = urlsplit(value if "://" in value else f"//{value}")
+            if parsed.hostname:
+                found.append(parsed.hostname)
+            continue
+
+        candidate = token.strip("[](),;'")
+        if "@" in candidate and not candidate.startswith("@"):  # user@host
+            candidate = candidate.rsplit("@", 1)[1]
+        candidate = candidate.split(":", 1)[0] if candidate.count(":") == 1 else candidate
+        try:
+            ipaddress.ip_network(candidate, strict=False)
+            found.append(candidate)
+        except ValueError:
+            pass
+
+    # Preserve order for deterministic audit messages.
+    return list(dict.fromkeys(found))
+
+
+def autonomous_scope_rejection(command: Optional[str], allowlist: Optional[str]) -> Optional[str]:
+    """Reject every explicitly detected target outside the engagement scope."""
+    for target in extract_command_targets(command):
+        if not is_target_in_scope(target, allowlist):
+            return f"Command target '{target}' is outside SCOPE_ALLOWLIST"
     return None

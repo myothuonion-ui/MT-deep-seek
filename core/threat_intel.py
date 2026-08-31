@@ -1,5 +1,5 @@
 """
-KMN-CyberSeek Threat Intel Research Module
+MT Pentester Threat Intel Research Module
 AI-directed web research for vulnerability/CVE information, feeding a local
 reference cache (orchestrator's `threat_intel` table) that pentest sessions can
 cross-reference against later - this is the "let the local database get better
@@ -43,7 +43,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "KMN-CyberSeek-ThreatIntel/1.0 (+security research tool, operator-run)"
+USER_AGENT = "MT Pentester-ThreatIntel/1.0 (+security research tool, operator-run)"
 _FETCH_TIMEOUT = 20.0
 _MAX_PAGE_CHARS = 80000        # rough pre-cap on raw HTML before stripping tags
 _MAX_CANDIDATE_URLS = 5        # bound how many pages we follow per topic (cost/time/risk control)

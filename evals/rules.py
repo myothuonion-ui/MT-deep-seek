@@ -1,4 +1,4 @@
-"""Reusable scoring rules for the KMN-CyberSeek reasoning evals.
+"""Reusable scoring rules for the MT Pentester reasoning evals.
 
 Each rule is a small predicate over a decision dict:
 

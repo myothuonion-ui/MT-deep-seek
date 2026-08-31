@@ -1,5 +1,5 @@
 """
-Shared test configuration for the KMN-CyberSeek suite.
+Shared test configuration for the MT Pentester suite.
 
 Two jobs:
 

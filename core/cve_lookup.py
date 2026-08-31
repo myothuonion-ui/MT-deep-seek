@@ -1,5 +1,5 @@
 """
-KMN-CyberSeek CVE Lookup Module
+MT Pentester CVE Lookup Module
 Optional, best-effort CVE enrichment for discovered services via the Vulners API.
 
 IMPORTANT - honesty note about this module:

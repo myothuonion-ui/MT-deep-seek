@@ -1,0 +1,40 @@
+# Optional external LiteLLM gateway for MT Pentester.
+# Provider keys are resolved from the gateway process environment.
+model_list:
+  - model_name: planner-strong
+    litellm_params:
+      model: deepseek/deepseek-v4-pro
+      api_key: os.environ/DEEPSEEK_API_KEY
+
+  - model_name: planner-fast
+    litellm_params:
+      model: deepseek/deepseek-v4-flash
+      api_key: os.environ/DEEPSEEK_API_KEY
+
+  - model_name: openrouter-auto
+    litellm_params:
+      model: openrouter/auto
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  - model_name: nvidia-strong
+    litellm_params:
+      model: nvidia_nim/nvidia/nemotron-3-super-120b-a12b
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+
+  - model_name: gemini-fast
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+  - model_name: local-private
+    litellm_params:
+      model: ollama_chat/deepseek-r1:8b
+      api_base: os.environ/OLLAMA_URL
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  drop_params: true
+  request_timeout: 90
+  num_retries: 1

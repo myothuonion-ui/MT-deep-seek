@@ -1,5 +1,5 @@
 """
-KMN-CyberSeek Playbook Registry (Coverage Engine — M1)
+MT Pentester Playbook Registry (Coverage Engine — M1)
 
 Declarative, per-service methodology. Each discovered service is mapped to one or
 more playbooks; every playbook is an ordered checklist of steps that the engine
