@@ -37,7 +37,7 @@ _SAFE_ENV_NAMES = {
     "HTTP_PROXY",
     "HTTPS_PROXY",
 }
-_SAFE_ENV_PREFIXES = ("BBOT_", "NUCLEI_")
+_SAFE_ENV_PREFIXES = ("BBOT_", "BROWSER_", "NUCLEI_")
 
 
 class AdapterError(RuntimeError):
@@ -120,7 +120,8 @@ def sanitized_adapter_environment(overrides: Optional[dict[str, str]] = None) ->
     """Build a minimal child environment without inheriting application secrets.
 
     Provider credentials and the backend API token are deliberately excluded.
-    Tool-specific values must use a reviewed ``BBOT_`` or ``NUCLEI_`` prefix.
+    Tool-specific values must use a reviewed ``BBOT_``, ``BROWSER_``, or
+    ``NUCLEI_`` prefix.
     """
     allowed = {
         key: value

@@ -30,6 +30,7 @@ from adapters import (
     BBOTAdapter,
     ClaudeBugHunterAdapter,
     NucleiAdapter,
+    PlaywrightBrowserAdapter,
 )
 from ai.connector import MTPentesterAIConnector
 from ai.providers import get_provider, normalize_provider, public_provider_catalog
@@ -38,6 +39,8 @@ from core.orchestrator import Orchestrator
 from core.scanner import Scanner
 from core.storage import migrate_runtime_files
 from core.api_contracts import ContractPolicyError, plan_contract
+from core.code_intelligence import CodeIntelligencePolicyError, analyze_source_bundle
+from core.evidence_graph import EvidenceGraph
 from core.proof_verifier import ProofPolicyError, evaluate_finding
 from core.validators import is_valid_target, is_cidr
 
@@ -144,6 +147,13 @@ ai_connector = MTPentesterAIConnector(provider=ai_provider)
 scanner = Scanner()
 _configured_db_path = Path(os.getenv("DB_PATH", "mt_pentester.db")).expanduser()
 migrate_runtime_files(_configured_db_path.parent)
+_evidence_graph_path = Path(
+    os.getenv(
+        "EVIDENCE_GRAPH_PATH",
+        str(_configured_db_path.with_name("mt_evidence_graph.db")),
+    )
+).expanduser()
+evidence_graph = EvidenceGraph(_evidence_graph_path)
 orchestrator = Orchestrator(ai_connector, scanner)
 plugin_registry = PluginRegistry()
 
@@ -369,6 +379,20 @@ class ContractPlanRequest(BaseModel):
     authorization_confirmed: bool
 
 
+class BrowserRunRequest(BaseModel):
+    """Run a bounded browser flow in an ephemeral, scope-checked context."""
+    target: str = Field(..., min_length=1, max_length=2048)
+    actions: List[Dict[str, Any]] = Field(default_factory=list, max_length=100)
+    authorization_confirmed: bool
+    interactive_actions_confirmed: bool = False
+    timeout_seconds: int = Field(120, ge=1, le=900)
+
+
+class WhiteboxAnalyzeRequest(BaseModel):
+    """Analyze explicitly supplied source text without reading or executing a repo."""
+    files: Dict[str, str]
+
+
 # API Endpoints
 @app.get("/")
 async def root():
@@ -442,7 +466,7 @@ async def list_plugins():
 async def evaluate_proof_request(req: ProofVerificationRequest):
     """Create a redacted proof bundle without running a command or network request."""
     try:
-        return evaluate_finding(
+        bundle = evaluate_finding(
             req.finding,
             req.observations,
             req.replay_steps,
@@ -450,6 +474,8 @@ async def evaluate_proof_request(req: ProofVerificationRequest):
             require_negative_control=req.require_negative_control,
             require_independent_confirmation=req.require_independent_confirmation,
         )
+        evidence_graph.record_proof_bundle(bundle)
+        return bundle
     except ProofPolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -458,13 +484,15 @@ async def evaluate_proof_request(req: ProofVerificationRequest):
 async def plan_contract_request(req: ContractPlanRequest):
     """Create policy-gated OpenAPI/GraphQL intents; execution is a separate boundary."""
     try:
-        return plan_contract(
+        plan = plan_contract(
             req.spec,
             req.base_url,
             kind=req.kind,
             authorization_confirmed=req.authorization_confirmed,
             allowlist=os.getenv("SCOPE_ALLOWLIST"),
         )
+        evidence_graph.record_contract_plan(plan)
+        return plan
     except ContractPolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -485,6 +513,47 @@ def _adapter_response(result) -> dict:
 def _raise_adapter_http_error(exc: AdapterError) -> None:
     status = 503 if isinstance(exc, AdapterUnavailableError) else 400
     raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+
+@app.get("/api/adapters/browser/status")
+async def browser_adapter_status():
+    """Report real optional runtime state without installing browser packages."""
+    return PlaywrightBrowserAdapter().status()
+
+
+@app.post("/api/adapters/browser/run")
+async def run_browser_adapter(req: BrowserRunRequest):
+    """Run only reviewed browser actions; interactive actions need second consent."""
+    try:
+        result = await PlaywrightBrowserAdapter().run(
+            req.target,
+            req.actions,
+            authorization_confirmed=req.authorization_confirmed,
+            interactive_actions_confirmed=req.interactive_actions_confirmed,
+            allowlist=os.getenv("SCOPE_ALLOWLIST"),
+            timeout_seconds=req.timeout_seconds,
+        )
+        evidence_graph.record_browser_run(req.target, result)
+        return result
+    except AdapterError as exc:
+        _raise_adapter_http_error(exc)
+
+
+@app.post("/api/whitebox/analyze")
+async def analyze_whitebox_request(req: WhiteboxAnalyzeRequest):
+    """Map routes and review candidates from supplied code; execute nothing."""
+    try:
+        analysis = analyze_source_bundle(req.files)
+        evidence_graph.record_code_analysis(analysis)
+        return analysis
+    except CodeIntelligencePolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/evidence-graph/stats")
+async def evidence_graph_stats():
+    """Return aggregate graph counts without exposing evidence payloads."""
+    return evidence_graph.stats()
 
 
 @app.post("/api/adapters/nuclei/scan")
@@ -1680,4 +1749,3 @@ def start_operation():
 
 if __name__ == "__main__":
     start_operation()
-

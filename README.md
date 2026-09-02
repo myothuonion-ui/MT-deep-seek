@@ -1,7 +1,7 @@
 # MT Pentester
 
 [![CI and security gates](https://github.com/myothuonion-ui/MT-deep-seek/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/myothuonion-ui/MT-deep-seek/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-3.0.0--alpha.4-brightgreen)](_version.py)
+[![Version](https://img.shields.io/badge/version-3.0.0--alpha.5-brightgreen)](_version.py)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
@@ -37,6 +37,14 @@ confirmation for high/critical findings. The OpenAPI/GraphQL planner creates
 scoped typed intents without executing requests; see
 [proof verification and contract planning](docs/proof-and-contracts.md).
 
+Alpha.5 adds an optional, runtime-detected Playwright browser adapter, bounded
+white-box source mapping, and a redacted local evidence graph. Browser
+navigation and every subresource stay inside the allowlist; click/fill/select
+need a second explicit confirmation. The default image does not claim or
+auto-install Playwright. Static review results remain candidates until the proof
+verifier confirms them; see
+[browser, white-box, and evidence graph](docs/browser-whitebox-evidence.md).
+
 Review [the hardened runtime](docs/hardened-runtime.md), [tool adapters](docs/tool-adapters.md), and [data migration](docs/data-migration.md) before changing the containment boundary.
 
 ---
@@ -64,7 +72,7 @@ FastAPI Backend     (6000)
    Orchestrator │ Policy Gate │ Evidence │ Capability Registry
           │           │
    Provider-neutral   │──── typed argv for autonomous actions
-   AI Connector       │──── Nmap / Nuclei / passive BBOT adapters
+   AI Connector       │──── Nmap / Nuclei / passive BBOT / optional browser
           │           │──── read-only Claude-BugHunter knowledge
  Ollama │ DeepSeek │ OpenRouter │ NVIDIA NIM │ Gemini │ LiteLLM
 ```
@@ -176,6 +184,7 @@ Only score/provenance metadata is committed. The raw report stays outside Git be
 - [Hardened runtime](docs/hardened-runtime.md)
 - [Tool adapters](docs/tool-adapters.md)
 - [Proof verification and API contract planning](docs/proof-and-contracts.md)
+- [Browser, white-box, and evidence graph](docs/browser-whitebox-evidence.md)
 - [Data migration](docs/data-migration.md)
 - [Coverage benchmarks](benchmarks/README.md)
 - [Features & Architecture Detail](features.md)

@@ -41,6 +41,22 @@ required = {
         "Plan only; no network request was performed.",
         "authorization-object-matrix",
     ],
+    "adapters/playwright_browser.py": [
+        "interactive_actions_confirmed",
+        "accept_downloads=False",
+        "arbitrary_javascript",
+        "scope_route",
+    ],
+    "core/code_intelligence.py": [
+        "Candidates are not vulnerabilities",
+        "_MAX_TOTAL_BYTES",
+        "\"classification\"",
+    ],
+    "core/evidence_graph.py": [
+        "\"[REDACTED]\"",
+        "PRAGMA foreign_keys = ON",
+        "chmod(self.path, 0o600)",
+    ],
 }
 for path, needles in required.items():
     text = Path(path).read_text(encoding="utf-8")

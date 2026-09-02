@@ -8,4 +8,4 @@ The frontend (sidebar/About), the FastAPI backend (/, OpenAPI), and the README
 badge all derive from this value, so they can never drift out of sync.
 """
 
-__version__ = "3.0.0-alpha.4"
+__version__ = "3.0.0-alpha.5"

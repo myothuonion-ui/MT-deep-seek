@@ -78,6 +78,12 @@ def test_plugin_manifest_is_honest_about_planned_and_blocked_integrations():
     assert by_id["mt-proof-verifier"]["execution"] == "non-executing"
     assert by_id["mt-api-contract-planner"]["status"] == "native"
     assert by_id["mt-proof-metrics"]["execution"] == "aggregate-only"
+    assert by_id["mt-code-intelligence"]["classification"] == "candidate-only"
+    assert by_id["mt-evidence-graph"]["execution"] == "local-storage"
+    assert by_id["playwright-browser"]["status"] == "adapter-ready"
+    assert not by_id["playwright-browser"]["enabled_by_default"]
+    assert not by_id["playwright-browser"]["auto_install"]
+    assert by_id["playwright-browser"]["runtime"]["available"] in {True, False}
 
 
 def test_autonomous_parser_produces_argv_without_shell():

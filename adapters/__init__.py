@@ -4,6 +4,7 @@ from .base import AdapterError, AdapterPolicyError, AdapterResult, AdapterUnavai
 from .bbot import BBOTAdapter
 from .claude_bughunter import ClaudeBugHunterAdapter
 from .nuclei import NucleiAdapter
+from .playwright_browser import PlaywrightBrowserAdapter
 
 __all__ = [
     "AdapterError",
@@ -13,4 +14,5 @@ __all__ = [
     "BBOTAdapter",
     "ClaudeBugHunterAdapter",
     "NucleiAdapter",
+    "PlaywrightBrowserAdapter",
 ]
