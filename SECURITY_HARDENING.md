@@ -4,7 +4,17 @@ Inherited-source provenance and the pinned baseline are recorded in `NOTICE`.
 
 ## Application hardening already applied
 
-Deny-by-default target scope; autonomous interpreter blocking; no FULL_AUTO allowlist bypass; strict AI response enums/ranges; explicit local-provider precedence; untrusted-memory fencing; initial-command allowlist/verifier enforcement; shell-safe captured credential injection; local-only credential memory; SSRF/redirect validation for threat-intel fetches; argv-based bounded brute-force subprocesses with temp-secret cleanup; masked report secrets; owner-only DB/report/.env permissions; serialized Metasploit handler commands; and non-destructive startup port selection.
+Deny-by-default target scope; autonomous interpreter, launcher, executable-path, dynamic-loader, and host-mutation blocking; no FULL_AUTO allowlist bypass; fail-closed high-risk verifier behavior; strict AI response enums/ranges; explicit local-provider precedence; untrusted-memory fencing; bounded, provenance-tagged Claude methodology routing; initial-command allowlist/verifier enforcement; shell-safe captured credential injection; local-only credential memory; SSRF/redirect validation for threat-intel fetches; argv-based bounded brute-force subprocesses with temp-secret cleanup; masked report secrets; owner-only DB/report/.env permissions; serialized Metasploit handler commands; and non-destructive startup port selection.
+
+## Autonomous execution boundary
+
+`FULL_AUTO_MODE` and per-session auto-approval skip routine prompts, not policy.
+Autonomous commands still require a bare allowlisted executable name, explicit
+scope, shell-free argv parsing, and a safe environment. Launchers such as
+`sudo`, `env`, and `timeout`, loader variables such as `LD_PRELOAD`, host
+mutation utilities, process-execution flags, and executable paths are routed to
+manual review. Missing or malformed verifier output rejects high-risk
+auto-execution instead of approving it.
 
 ## Runtime isolation and reproducibility
 
