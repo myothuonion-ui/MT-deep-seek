@@ -2,6 +2,9 @@
   "schema_version": 2,
   "plugins": [
     {"id":"mt-core","name":"MT Pentester Core","kind":"engine","source":"native","license":"MIT","status":"native","enabled_by_default":true,"mode_ceiling":"safe-active"},
+    {"id":"mt-proof-verifier","name":"MT Proof Verifier","kind":"tool","source":"native","license":"MIT","status":"native","enabled_by_default":true,"mode_ceiling":"knowledge-only","execution":"non-executing"},
+    {"id":"mt-api-contract-planner","name":"MT API Contract Planner","kind":"tool","source":"native","license":"MIT","status":"native","enabled_by_default":true,"mode_ceiling":"knowledge-only","execution":"non-executing"},
+    {"id":"mt-proof-metrics","name":"MT Proof Metrics","kind":"benchmark","source":"native","license":"MIT","status":"native","enabled_by_default":true,"mode_ceiling":"knowledge-only","execution":"aggregate-only"},
     {"id":"shannon","name":"Shannon","kind":"engine","source":"https://github.com/KeygraphHQ/shannon","license":"AGPL-3.0","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"lab-full"},
     {"id":"strix","name":"Strix","kind":"engine","source":"https://github.com/usestrix/strix","license":"Apache-2.0","status":"adapter-planned","enabled_by_default":false,"mode_ceiling":"lab-full"},
     {"id":"pentagi","name":"PentAGI","kind":"engine","source":"https://github.com/vxcontrol/pentagi","license":"MIT plus project notices","status":"reference-only","enabled_by_default":false,"mode_ceiling":"lab-full"},

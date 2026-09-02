@@ -4,6 +4,32 @@ All notable changes are documented here. Follows [Keep a Changelog](https://keep
 
 ---
 
+## [3.0.0-alpha.4] — 2026-09-02 — Proof contracts and API planning
+
+### Added
+- Deterministic, redacted proof bundles with candidate, reproduced, confirmed,
+  and rejected states.
+- Required negative controls and independent confirmation for high/critical
+  findings before confirmation.
+- Read-only OpenAPI/Swagger and GraphQL contract planning with authorization,
+  scope, document-size, and operation-count gates.
+- Aggregate proof metrics for confirmation/rejection rates, control/replay
+  coverage, precision, recall, F1, runtime, provider/model, and API cost.
+- Authenticated API endpoints for non-executing proof evaluation and contract
+  planning.
+
+### Changed
+- Legacy vulnerability validation now honors proof-bundle status before scanner
+  source heuristics.
+- Benchmark evidence schema advanced to v2 while keeping sensitive raw reports,
+  targets, and evidence out of committed metrics.
+
+### Security
+- Replay plans redact common credential fields and flags and are always marked
+  `not-executed`.
+- Contract planning performs no network access, never resolves external
+  references, and rejects out-of-scope base URLs.
+
 ## [3.0.0-alpha.3] — 2026-09-02 — Skill routing and fail-closed autonomy
 
 ### Added

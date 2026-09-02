@@ -17,7 +17,7 @@ a false positive (callers may skip suppressed findings).
 """
 
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 # Sources whose findings are validated by an actual on-host check → confirmed.
 _CONFIRMED_SOURCES = {"nmap-vuln-script", "exploit", "manual", "post_ex"}
@@ -74,6 +74,33 @@ def validate(finding: Dict, discovered_version: str = "") -> Dict:
     """Return a copy of `finding` with normalised status/confidence and possible
     suppression. Never raises."""
     f = dict(finding)
+
+    # A deterministic proof bundle, when present, takes precedence over source
+    # heuristics. This bridges legacy findings into the stronger evidence
+    # contract without pretending that every scanner match is proof.
+    proof = f.get("proof_bundle")
+    if isinstance(proof, Mapping):
+        proof_status = str(proof.get("status", "")).lower()
+        proof_confidence = float(proof.get("confidence", 0.0) or 0.0)
+        if proof_status == "confirmed":
+            f["status"] = "confirmed"
+            f["confidence"] = max(0.9, min(proof_confidence, 1.0))
+            f["validation_note"] = "confirmed by deterministic MT proof bundle"
+            return f
+        if proof_status == "rejected":
+            f["status"] = "potential"
+            f["confidence"] = min(proof_confidence, 0.1)
+            f["suppressed"] = True
+            f["validation_note"] = "rejected by deterministic MT proof bundle"
+            return f
+        if proof_status in {"candidate", "reproduced"}:
+            f["status"] = "potential"
+            f["confidence"] = min(max(proof_confidence, 0.0), 0.75)
+            f["validation_note"] = (
+                f"proof bundle remains {proof_status}; controls are incomplete"
+            )
+            return f
+
     source = (f.get("source_tool") or "").lower()
     cve_ids = f.get("cve_ids") or []
     if isinstance(cve_ids, str):
@@ -108,3 +135,4 @@ def validate(finding: Dict, discovered_version: str = "") -> Dict:
             f["status"] = "potential"
         f["confidence"] = f.get("confidence", 0.5)
     return f
+

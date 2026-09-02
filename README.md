@@ -1,7 +1,7 @@
 # MT Pentester
 
 [![CI and security gates](https://github.com/myothuonion-ui/MT-deep-seek/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/myothuonion-ui/MT-deep-seek/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-3.0.0--alpha.3-brightgreen)](_version.py)
+[![Version](https://img.shields.io/badge/version-3.0.0--alpha.4-brightgreen)](_version.py)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
@@ -30,6 +30,12 @@ only the top relevant bounded excerpts into the AI context with source
 provenance and untrusted-data guardrails. Autonomous commands remain separately
 scope checked, parsed to typed argv, and fail closed when high-risk verification
 is unavailable or malformed.
+
+MT now separates a scanner match from a confirmed finding. The native proof
+verifier requires reproduction and negative-control evidence, plus independent
+confirmation for high/critical findings. The OpenAPI/GraphQL planner creates
+scoped typed intents without executing requests; see
+[proof verification and contract planning](docs/proof-and-contracts.md).
 
 Review [the hardened runtime](docs/hardened-runtime.md), [tool adapters](docs/tool-adapters.md), and [data migration](docs/data-migration.md) before changing the containment boundary.
 
@@ -169,6 +175,7 @@ Only score/provenance metadata is committed. The raw report stays outside Git be
 - [AI providers and LiteLLM](docs/ai-providers.md)
 - [Hardened runtime](docs/hardened-runtime.md)
 - [Tool adapters](docs/tool-adapters.md)
+- [Proof verification and API contract planning](docs/proof-and-contracts.md)
 - [Data migration](docs/data-migration.md)
 - [Coverage benchmarks](benchmarks/README.md)
 - [Features & Architecture Detail](features.md)

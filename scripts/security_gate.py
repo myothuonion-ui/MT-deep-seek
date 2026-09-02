@@ -31,6 +31,16 @@ required = {
     ],
     "adapters/nuclei.py": ["-no-interactsh", "headless,file,code,javascript", "fuzz,dos,intrusive"],
     "adapters/bbot.py": ["-rf", "passive", "--no-deps"],
+    "core/proof_verifier.py": [
+        "explicit authorization confirmation is required",
+        "\"execution\": \"not-executed\"",
+        "negative_control",
+    ],
+    "core/api_contracts.py": [
+        "is_target_in_scope",
+        "Plan only; no network request was performed.",
+        "authorization-object-matrix",
+    ],
 }
 for path, needles in required.items():
     text = Path(path).read_text(encoding="utf-8")
@@ -58,3 +68,4 @@ for removed_path in (
     if Path(removed_path).exists():
         raise SystemExit(f"security gate failed: retired bootstrap artifact remains: {removed_path}")
 print("MT security gate: PASS")
+

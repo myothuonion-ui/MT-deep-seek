@@ -74,6 +74,10 @@ def test_plugin_manifest_is_honest_about_planned_and_blocked_integrations():
     assert by_id["claude-bughunter"]["enabled_by_default"]
     assert by_id["claude-bughunter"]["routing"] == "bounded-auto-context"
     assert by_id["claude-bughunter"]["execution"] == "read-only"
+    assert by_id["mt-proof-verifier"]["status"] == "native"
+    assert by_id["mt-proof-verifier"]["execution"] == "non-executing"
+    assert by_id["mt-api-contract-planner"]["status"] == "native"
+    assert by_id["mt-proof-metrics"]["execution"] == "aggregate-only"
 
 
 def test_autonomous_parser_produces_argv_without_shell():
@@ -104,3 +108,4 @@ def test_command_scope_extracts_urls_and_ips():
     assert "outside SCOPE_ALLOWLIST" in autonomous_scope_rejection(
         "curl https://evil.example/", "10.10.10.0/24,*.example.test"
     )
+
