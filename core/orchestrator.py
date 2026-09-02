@@ -42,6 +42,7 @@ _CRED_PATTERNS: List[re.Pattern] = [
 from ai.connector import MTPentesterAIConnector, AIResponse
 from core.scanner import Scanner
 from core.memory_index import FindingsIndex
+from core.skill_router import ClaudeSkillRouter
 from core.validators import (
     autonomous_scope_rejection,
     is_allowlisted_command,
@@ -2572,6 +2573,21 @@ Domain rule: If Target Domain is provided ({session.target_domain}), use domain 
                     _queued_already = True
                     self.queue_for_approval(session_id, ai_response.suggested_command)
 
+            # Shared deterministic gate. FULL_AUTO_MODE and per-session
+            # auto_approve may skip routine prompts, but neither may bypass the
+            # autonomous argv policy.
+            if should_auto_execute:
+                allowlist_rejection = is_allowlisted_command(ai_response.suggested_command)
+                if allowlist_rejection:
+                    logger.warning(
+                        f"Session {session_id}: blocking auto-execute — {allowlist_rejection}: "
+                        f"{ai_response.suggested_command[:100]}"
+                    )
+                    should_auto_execute = False
+                    if not _queued_already:
+                        _queued_already = True
+                        self.queue_for_approval(session_id, ai_response.suggested_command)
+
             # Empty command → recover instead of silently stalling / queuing "".
             if not (ai_response.suggested_command or "").strip():
                 await self._handle_empty_command(session_id, "post_command")
@@ -4618,15 +4634,18 @@ Web apps: {webapps}
             logger.error(f"Failed to save strategic state for session {session_id}: {e}")
 
     async def _vet_command(self, session_id: str, command: str, reasoning: str) -> Dict:
-        """Run the VERIFIER (self-critique) pass on a proposed command before it
-        auto-executes with no human in the loop. Returns a dict:
-            {"verdict": "approve|revise|reject", "command": <possibly revised>,
-             "reason": str}
-        Fails OPEN to 'approve' on any error so a critique outage never blocks the
-        loop — the deterministic allowlist/keyword backstops still apply downstream.
+        """Run the VERIFIER before an unreviewed high-risk command.
+
+        Any missing, malformed, or failed verifier response rejects autonomous
+        execution and routes the original command to operator review. Safety
+        checks must never become weaker because an AI provider is unavailable.
         """
         session = self.sessions.get(session_id)
-        default = {"verdict": "approve", "command": command, "reason": "critique skipped"}
+        default = {
+            "verdict": "reject",
+            "command": command,
+            "reason": "verifier unavailable or returned an invalid response",
+        }
         if not session or not command:
             return default
 
@@ -4642,22 +4661,28 @@ Web apps: {webapps}
             if not result or not isinstance(result, dict):
                 return default
 
-            verdict = str(result.get("verdict", "approve")).strip().lower()
+            verdict = str(result.get("verdict", "reject")).strip().lower()
             if verdict not in ("approve", "revise", "reject"):
-                verdict = "approve"
+                return default
             reason = str(result.get("reason", ""))[:300]
             revised = str(result.get("revised_command", "")).strip()
+            if verdict == "revise" and not revised:
+                return {
+                    "verdict": "reject",
+                    "command": command,
+                    "reason": "verifier requested revision without a replacement command",
+                }
 
-            chosen = command
-            if verdict == "revise" and revised:
-                chosen = revised
+            chosen = revised if verdict == "revise" else command
             logger.info(
                 f"Session {session_id}: critique verdict={verdict} for "
                 f"'{command[:60]}' — {reason}"
             )
             return {"verdict": verdict, "command": chosen, "reason": reason}
         except Exception as e:
-            logger.warning(f"Critique pass failed for session {session_id} (non-fatal, fail-open): {e}")
+            logger.warning(
+                f"Critique pass failed for session {session_id} (non-fatal, fail-closed): {e}"
+            )
             return default
 
     def _plan_context_block(self, session: "Session") -> str:
@@ -5212,6 +5237,53 @@ Web apps: {webapps}
             logger.debug(f"Finding retrieval failed for {session_id} (non-fatal): {e}")
             return []
 
+    def _get_skill_router(self) -> ClaudeSkillRouter:
+        """Lazily create the read-only methodology router."""
+        router = self.__dict__.get("_claude_skill_router")
+        if router is None:
+            router = ClaudeSkillRouter()
+            self.__dict__["_claude_skill_router"] = router
+        return router
+
+    def _build_methodology_guidance(self, session: "Session") -> Optional[Dict[str, Any]]:
+        """Return bounded, provenance-tagged methodology relevant to this turn."""
+        try:
+            latest_command = ""
+            if session.commands_executed:
+                latest_command = session.commands_executed[-1].get("command", "")[:300]
+
+            services = [
+                {
+                    "service": item.get("service", ""),
+                    "port": item.get("port", ""),
+                    "version": item.get("version", ""),
+                }
+                for item in session.discovered_services[-30:]
+            ]
+            vulnerabilities = []
+            for item in session.vulnerabilities[-20:]:
+                if isinstance(item, dict):
+                    vulnerabilities.append(
+                        item.get("title")
+                        or item.get("name")
+                        or item.get("type")
+                        or item.get("description", "")[:200]
+                    )
+                else:
+                    vulnerabilities.append(str(item)[:200])
+
+            routed = self._get_skill_router().route({
+                "objective": session.objective,
+                "stage": session.current_stage,
+                "services": services,
+                "vulnerabilities": vulnerabilities,
+                "latest_command": latest_command,
+            })
+            return routed if routed.get("enabled") else None
+        except Exception as exc:
+            logger.debug(f"Claude methodology routing failed (non-fatal): {exc}")
+            return None
+
     def _build_ai_memory(self, session_id: str) -> str:
         """Build compressed AI memory from session history.
 
@@ -5311,6 +5383,11 @@ Web apps: {webapps}
                 for r in self._retrieve_relevant_findings(session_id, recall_query, k=4)
             ]
 
+            # Route at most a few relevant read-only methodology excerpts. Skill
+            # content is provenance-tagged and remains inside the connector's
+            # untrusted-memory fence; no upstream runner or script is executed.
+            methodology_guidance = self._build_methodology_guidance(session)
+
             # Build memory structure
             memory = {
                 # Strategic anchor: objective + plan + progress so the tactical
@@ -5350,6 +5427,7 @@ Web apps: {webapps}
                 'credentials_found': found_credentials,
                 # Semantically-recalled older findings (hybrid retrieval)
                 'relevant_past_findings': relevant_findings,
+                'methodology_guidance': methodology_guidance,
                 'compressed_at': datetime.now().isoformat()
             }
             
