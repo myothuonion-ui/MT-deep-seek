@@ -29,6 +29,27 @@ OpenAPI and GraphQL contracts are parsed locally with bounded document and
 operation limits. Planning performs no requests, never fetches external
 references, and rejects base URLs outside `SCOPE_ALLOWLIST`.
 
+## Browser and code-intelligence boundary
+
+The Playwright adapter is optional, pinned, runtime-detected, disabled by
+default, and never auto-installed. Each top-level navigation and subresource
+request is checked against `SCOPE_ALLOWLIST`. Browser contexts are ephemeral;
+downloads, uploads, service workers, and arbitrary JavaScript are not exposed.
+Navigation, waiting, capture, and screenshots require engagement authorization;
+click, fill, and select require a second explicit interactive-action
+confirmation. Filled values are redacted from action logs and screenshots are
+owner-only files with SHA-256 provenance.
+
+White-box intelligence only accepts bounded path-to-source-text input supplied
+to the authenticated API. It does not open repository paths, execute code,
+resolve dependencies, or fetch references. Routes, nearby auth signals, request
+sources, and sensitive sinks produce review candidates, never confirmed
+vulnerabilities.
+
+The evidence graph stores redacted nodes, edges, provenance, and engagement
+checkpoints in an owner-only local SQLite file. The public stats endpoint
+returns counts only; it does not dump evidence payloads.
+
 ## Runtime isolation and reproducibility
 
 The hardened profile adds `Dockerfile.hardened` + `compose.hardened.yml` with a non-root user, read-only root filesystem, dropped Linux capabilities, `no-new-privileges`, bounded tmpfs, localhost-only published ports, PID/memory/CPU limits and an explicit `SCOPE_ALLOWLIST` requirement. Child services are supervised by `scripts/run_container.py` without shell invocation.

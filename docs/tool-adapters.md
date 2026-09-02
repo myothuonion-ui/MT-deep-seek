@@ -5,7 +5,8 @@ arbitrary command strings. Every network action requires the authenticated API,
 an explicit authorization confirmation, and a target inside `SCOPE_ALLOWLIST`.
 Adapter child processes receive a minimized environment; backend authentication
 and AI-provider credentials are not inherited. Only reviewed runtime variables,
-proxy settings, and tool-prefixed `BBOT_`/`NUCLEI_` settings are forwarded.
+proxy settings, and tool-prefixed `BBOT_`/`BROWSER_`/`NUCLEI_` settings
+are forwarded.
 
 ## Runtime matrix
 
@@ -16,10 +17,47 @@ proxy settings, and tool-prefixed `BBOT_`/`NUCLEI_` settings are forwarded.
 | Nuclei templates | Included | safe-active | Read-only snapshot pinned to commit `e5f19e6144135e107962bb943231413796fd7fe7` |
 | Claude-BugHunter | Included | knowledge-only | Automatically routes up to 3 relevant, bounded skill excerpts into untrusted AI context; pinned provenance; upstream scripts are not executed |
 | BBOT 3.0.2 | Optional | map-only | Typed argv; passive-module filter; dependency auto-install disabled |
+| Playwright 1.62.0 | Optional | safe-active | Ephemeral Chromium; every request scope checked; interactive actions require second confirmation |
 
 The live availability for every adapter is returned by `GET /api/plugins`.
 `adapter-ready` describes the MT integration; `runtime.available` describes the
 current machine or container.
+
+## Playwright browser
+
+Playwright is deliberately absent from the default lock and hardened image.
+`GET /api/adapters/browser/status` reports available only when the
+operator-managed Python package is exactly 1.62.0 and its reviewed Chromium
+runtime is installed. A local operator can prepare an isolated runtime:
+
+```bash
+python -m pip install 'playwright==1.62.0'
+python -m playwright install chromium
+```
+
+The API exposes only navigate, click, fill, select, wait-for, screenshot, and
+metadata capture actions. It exposes no arbitrary JavaScript, upload, or
+download primitive. All top-level navigation and subresource hosts must be in
+`SCOPE_ALLOWLIST`; third-party assets outside scope are blocked. Click, fill,
+and select require `interactive_actions_confirmed: true` in addition to the
+normal authorization confirmation. Each run uses a new browser context and
+redacts fill/select values from its action log.
+
+```bash
+curl --fail --silent \
+  -H "X-API-Key: $API_AUTH_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "target": "https://lab.example",
+    "authorization_confirmed": true,
+    "actions": [
+      {"action": "navigate", "url": "https://lab.example/login"},
+      {"action": "screenshot", "label": "login"},
+      {"action": "capture"}
+    ]
+  }' \
+  http://127.0.0.1:6000/api/adapters/browser/run
+```
 
 ## Nuclei
 

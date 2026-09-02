@@ -16,6 +16,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Optional
+from urllib.parse import urlsplit
 
 
 _SAFE_ENV_NAMES = {
@@ -37,7 +38,7 @@ _SAFE_ENV_NAMES = {
     "HTTP_PROXY",
     "HTTPS_PROXY",
 }
-_SAFE_ENV_PREFIXES = ("BBOT_", "NUCLEI_")
+_SAFE_ENV_PREFIXES = ("BBOT_", "BROWSER_", "NUCLEI_")
 
 
 class AdapterError(RuntimeError):
@@ -84,7 +85,13 @@ def require_authorized_scope(
 
     if not authorization_confirmed:
         raise AdapterPolicyError("explicit authorization confirmation is required")
-    if not is_target_in_scope(target, allowlist):
+    parsed = urlsplit(target)
+    scope_target = (
+        parsed.hostname
+        if parsed.scheme.lower() in {"http", "https"} and parsed.hostname
+        else target
+    )
+    if not is_target_in_scope(scope_target, allowlist):
         raise AdapterPolicyError("target is outside SCOPE_ALLOWLIST")
 
 
@@ -120,7 +127,8 @@ def sanitized_adapter_environment(overrides: Optional[dict[str, str]] = None) ->
     """Build a minimal child environment without inheriting application secrets.
 
     Provider credentials and the backend API token are deliberately excluded.
-    Tool-specific values must use a reviewed ``BBOT_`` or ``NUCLEI_`` prefix.
+    Tool-specific values must use a reviewed ``BBOT_``, ``BROWSER_``, or
+    ``NUCLEI_`` prefix.
     """
     allowed = {
         key: value

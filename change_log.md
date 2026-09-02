@@ -4,6 +4,28 @@ All notable changes are documented here. Follows [Keep a Changelog](https://keep
 
 ---
 
+## [3.0.0-alpha.5] — 2026-09-02 — Scoped browser and evidence graph
+
+### Added
+- Optional Playwright 1.62.0 browser adapter with honest runtime detection,
+  ephemeral Chromium contexts, per-request scope enforcement, bounded actions,
+  redacted interaction logs, and hashed screenshot artifacts.
+- Bounded white-box source mapper for routes, nearby authorization signals,
+  request inputs, and sensitive sinks. Results are candidates, not findings.
+- Durable local SQLite evidence graph for redacted proof bundles, contract
+  plans, code analyses, provenance edges, and resumable checkpoints.
+- Authenticated browser, white-box analysis, and aggregate evidence-graph API
+  endpoints plus regression and security-gate coverage.
+
+### Security
+- Browser click, fill, and select require separate interactive-action consent;
+  downloads, uploads, service workers, arbitrary JavaScript, and out-of-scope
+  requests remain blocked.
+- Playwright stays outside the default dependency lock and image, is never
+  auto-installed, and is available only at the pinned runtime version.
+- Static analysis never reads a repository path, executes source, resolves
+  dependencies, or upgrades a candidate to a confirmed vulnerability.
+
 ## [3.0.0-alpha.4] — 2026-09-02 — Proof contracts and API planning
 
 ### Added
