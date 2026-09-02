@@ -265,9 +265,17 @@ def test_agent_graph_and_model_route_apis_are_authenticated():
         "ALLOW_UNSCOPED_TARGETS": "false",
         "AI_PROVIDER": "local",
         "MODEL_ROUTING_ENABLED": "false",
+        "PATH": f"{root}{os.pathsep}{os.environ.get('PATH', os.defpath)}",
     }
     previous = {key: os.environ.get(key) for key in environment}
     try:
+        fake_nmap = root / "nmap"
+        fake_nmap.write_text(
+            "#!/bin/sh\n"
+            "printf '%s\\n' 'Nmap version 7.94 ( https://nmap.org )'\n",
+            encoding="utf-8",
+        )
+        fake_nmap.chmod(0o700)
         os.environ.update(environment)
         sys.modules.pop("main", None)
         backend = importlib.import_module("main")
