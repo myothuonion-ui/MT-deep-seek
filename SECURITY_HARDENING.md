@@ -16,6 +16,19 @@ mutation utilities, process-execution flags, and executable paths are routed to
 manual review. Missing or malformed verifier output rejects high-risk
 auto-execution instead of approving it.
 
+## Evidence confirmation boundary
+
+Scanner matches and heuristic CVE lookups are not automatically treated as
+proof. A deterministic proof bundle requires an explicitly authorized
+engagement, supporting reproduction, a negative control, and—at high or critical
+severity—independent confirmation. Rejected bundles suppress the legacy match;
+incomplete bundles remain potential. Replay steps are redacted and remain
+`not-executed` until a separate executor re-validates authorization and scope.
+
+OpenAPI and GraphQL contracts are parsed locally with bounded document and
+operation limits. Planning performs no requests, never fetches external
+references, and rejects base URLs outside `SCOPE_ALLOWLIST`.
+
 ## Runtime isolation and reproducibility
 
 The hardened profile adds `Dockerfile.hardened` + `compose.hardened.yml` with a non-root user, read-only root filesystem, dropped Linux capabilities, `no-new-privileges`, bounded tmpfs, localhost-only published ports, PID/memory/CPU limits and an explicit `SCOPE_ALLOWLIST` requirement. Child services are supervised by `scripts/run_container.py` without shell invocation.

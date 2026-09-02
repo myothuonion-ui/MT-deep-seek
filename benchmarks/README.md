@@ -59,6 +59,22 @@ The resulting JSON stores only score/provenance metadata: code commit, UTC time,
 report SHA-256, lab SHA-256, category scores and touched/confirmed percentages.
 See `benchmarks/evidence/README.md`.
 
+Schema v2 can also aggregate redacted proof bundles and optional ground truth.
+It records precision, recall, F1, confirmation/rejection rates, replay coverage,
+negative-control coverage, independent-confirmation coverage, runtime and model
+cost without copying raw targets or evidence into the benchmark artifact:
+
+```bash
+python benchmarks/record_evidence.py report.md \
+  --proof-bundles /path/to/redacted-proof-bundles.json \
+  --ground-truth /path/to/ground-truth.json \
+  --duration-seconds 1234 \
+  --api-cost-usd 2.50 \
+  --provider openrouter \
+  --model reviewed-model \
+  --run-id authorized-lab-2026-09
+```
+
 **Target after the coverage engine:** raise *touched* toward ~90% and improve
 *confirmed* substantially. Until `benchmarks/evidence/current_score.json` exists
 from a fresh authorized-lab run, the repository should report the current live

@@ -16,6 +16,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+from metrics import summarize_proof_bundles
 from score import load_lab, score
 
 HERE = Path(__file__).resolve().parent
@@ -49,14 +50,41 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=HERE / "evidence" / "current_score.json")
     ap.add_argument("--minimum-touched", type=float, default=0.0)
     ap.add_argument("--minimum-confirmed", type=float, default=0.0)
+    ap.add_argument(
+        "--proof-bundles",
+        type=Path,
+        help="Optional JSON array of redacted MT proof bundles",
+    )
+    ap.add_argument(
+        "--ground-truth",
+        type=Path,
+        help="Optional JSON object mapping finding_id to vulnerable true/false",
+    )
+    ap.add_argument("--duration-seconds", type=float, default=0.0)
+    ap.add_argument("--api-cost-usd", type=float, default=0.0)
+    ap.add_argument("--provider", default="")
+    ap.add_argument("--model", default="")
+    ap.add_argument("--run-id", default="")
     args = ap.parse_args()
 
     report_text = args.report.read_text(encoding="utf-8")
     lab = load_lab(str(args.lab))
     result = score(report_text, lab)
 
+    proof_metrics = None
+    if args.proof_bundles:
+        bundles = json.loads(args.proof_bundles.read_text(encoding="utf-8"))
+        if not isinstance(bundles, list):
+            raise SystemExit("proof bundle input must be a JSON array")
+        truth = None
+        if args.ground_truth:
+            truth = json.loads(args.ground_truth.read_text(encoding="utf-8"))
+            if not isinstance(truth, dict):
+                raise SystemExit("ground truth input must be a JSON object")
+        proof_metrics = summarize_proof_bundles(bundles, truth)
+
     evidence = {
-        "schema": 1,
+        "schema": 2,
         "kind": "authorized_lab_run",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "code_commit": current_commit(),
@@ -69,6 +97,14 @@ def main() -> int:
         "touched_pct": result["touched_pct"],
         "confirmed_pct": result["confirmed_pct"],
         "categories": result["categories"],
+        "run": {
+            "run_id": args.run_id,
+            "duration_seconds": max(0.0, args.duration_seconds),
+            "api_cost_usd": max(0.0, args.api_cost_usd),
+            "provider": args.provider[:100],
+            "model": args.model[:200],
+        },
+        "proof_metrics": proof_metrics,
     }
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -88,3 +124,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

@@ -61,3 +61,42 @@ def test_explicit_confirmed_status_preserved():
          "status": "confirmed", "description": "proven RCE"}
     out = vv.validate(f)
     assert out["status"] == "confirmed"
+
+def test_confirmed_proof_bundle_overrides_source_heuristic():
+    f = {
+        "name": "validated IDOR",
+        "service": "https",
+        "source_tool": "nvd",
+        "proof_bundle": {"status": "confirmed", "confidence": 0.98},
+    }
+    out = vv.validate(f)
+    assert out["status"] == "confirmed"
+    assert out["confidence"] == 0.98
+    assert "proof bundle" in out["validation_note"]
+
+
+def test_rejected_proof_bundle_suppresses_scanner_match():
+    f = {
+        "name": "false positive",
+        "service": "https",
+        "source_tool": "nmap-vuln-script",
+        "proof_bundle": {"status": "rejected", "confidence": 0.05},
+    }
+    out = vv.validate(f)
+    assert out["status"] == "potential"
+    assert out["suppressed"] is True
+    assert out["confidence"] <= 0.1
+
+
+def test_incomplete_proof_bundle_never_confirms():
+    f = {
+        "name": "reproduced without control",
+        "service": "https",
+        "source_tool": "manual",
+        "proof_bundle": {"status": "reproduced", "confidence": 0.65},
+    }
+    out = vv.validate(f)
+    assert out["status"] == "potential"
+    assert out["confidence"] <= 0.75
+
+

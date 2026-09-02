@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv, set_key
 load_dotenv()
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,6 +37,8 @@ from core.plugin_registry import PluginRegistry
 from core.orchestrator import Orchestrator
 from core.scanner import Scanner
 from core.storage import migrate_runtime_files
+from core.api_contracts import ContractPolicyError, plan_contract
+from core.proof_verifier import ProofPolicyError, evaluate_finding
 from core.validators import is_valid_target, is_cidr
 
 # Single source of truth for the version (see _version.py / bump_version.py).
@@ -348,6 +350,25 @@ class BBOTMapRequest(BaseModel):
     preset: str = Field("subdomain-enum", pattern=r"^(subdomain-enum|code-enum)$")
     timeout_seconds: int = Field(900, ge=1, le=3600)
 
+
+class ProofVerificationRequest(BaseModel):
+    """Evaluate already-captured observations; this endpoint executes nothing."""
+    finding: Dict[str, Any]
+    observations: List[Dict[str, Any]] = Field(default_factory=list, max_length=50)
+    replay_steps: List[Dict[str, Any]] = Field(default_factory=list, max_length=30)
+    authorization_confirmed: bool
+    require_negative_control: bool = True
+    require_independent_confirmation: Optional[bool] = None
+
+
+class ContractPlanRequest(BaseModel):
+    """Create typed, non-executing intents from an authorized API contract."""
+    spec: Any
+    base_url: str = Field(..., min_length=1, max_length=2048)
+    kind: str = Field("auto", pattern=r"^(auto|openapi|graphql)$")
+    authorization_confirmed: bool
+
+
 # API Endpoints
 @app.get("/")
 async def root():
@@ -415,6 +436,37 @@ async def list_ai_models(provider: str):
 async def list_plugins():
     """Return the capability/integration manifest and its honest implementation status."""
     return plugin_registry.public_catalog()
+
+
+@app.post("/api/verification/evaluate")
+async def evaluate_proof_request(req: ProofVerificationRequest):
+    """Create a redacted proof bundle without running a command or network request."""
+    try:
+        return evaluate_finding(
+            req.finding,
+            req.observations,
+            req.replay_steps,
+            authorization_confirmed=req.authorization_confirmed,
+            require_negative_control=req.require_negative_control,
+            require_independent_confirmation=req.require_independent_confirmation,
+        )
+    except ProofPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/contracts/plan")
+async def plan_contract_request(req: ContractPlanRequest):
+    """Create policy-gated OpenAPI/GraphQL intents; execution is a separate boundary."""
+    try:
+        return plan_contract(
+            req.spec,
+            req.base_url,
+            kind=req.kind,
+            authorization_confirmed=req.authorization_confirmed,
+            allowlist=os.getenv("SCOPE_ALLOWLIST"),
+        )
+    except ContractPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _adapter_response(result) -> dict:
@@ -1628,3 +1680,4 @@ def start_operation():
 
 if __name__ == "__main__":
     start_operation()
+
