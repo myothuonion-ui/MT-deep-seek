@@ -1,5 +1,7 @@
 import json
 import os
+import tempfile
+from pathlib import Path
 import pytest
 
 from adapters.base import AdapterPolicyError
@@ -115,7 +117,8 @@ def test_code_intelligence_rejects_traversal_and_oversized_files():
         analyze_source_bundle({"large.py": "x" * 500_001})
 
 
-def test_evidence_graph_redacts_secrets_links_nodes_and_checkpoints(tmp_path):
+def test_evidence_graph_redacts_secrets_links_nodes_and_checkpoints():
+    tmp_path = Path(tempfile.mkdtemp(prefix="mt-evidence-test-"))
     path = tmp_path / "evidence.db"
     graph = EvidenceGraph(path)
     target = graph.add_node(
@@ -156,7 +159,8 @@ def test_evidence_graph_redacts_secrets_links_nodes_and_checkpoints(tmp_path):
         graph.add_edge(observation, target, "owns")
 
 
-def test_evidence_graph_records_proof_and_code_provenance(tmp_path):
+def test_evidence_graph_records_proof_and_code_provenance():
+    tmp_path = Path(tempfile.mkdtemp(prefix="mt-proof-graph-test-"))
     graph = EvidenceGraph(tmp_path / "graph.db")
     refs = graph.record_proof_bundle(
         {
@@ -176,7 +180,8 @@ def test_evidence_graph_records_proof_and_code_provenance(tmp_path):
     assert graph.stats()["edge_count"] == 1
 
 
-def test_evidence_graph_records_redacted_browser_provenance(tmp_path):
+def test_evidence_graph_records_redacted_browser_provenance():
+    tmp_path = Path(tempfile.mkdtemp(prefix="mt-browser-graph-test-"))
     graph = EvidenceGraph(tmp_path / "browser.db")
     refs = graph.record_browser_run(
         "https://app.example.test",

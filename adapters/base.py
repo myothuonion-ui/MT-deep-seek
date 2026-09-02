@@ -16,6 +16,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Optional
+from urllib.parse import urlsplit
 
 
 _SAFE_ENV_NAMES = {
@@ -84,7 +85,13 @@ def require_authorized_scope(
 
     if not authorization_confirmed:
         raise AdapterPolicyError("explicit authorization confirmation is required")
-    if not is_target_in_scope(target, allowlist):
+    parsed = urlsplit(target)
+    scope_target = (
+        parsed.hostname
+        if parsed.scheme.lower() in {"http", "https"} and parsed.hostname
+        else target
+    )
+    if not is_target_in_scope(scope_target, allowlist):
         raise AdapterPolicyError("target is outside SCOPE_ALLOWLIST")
 
 
