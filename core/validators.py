@@ -282,6 +282,34 @@ AUTO_DENIED_BINARIES = {
     "perl", "ruby", "php", "node", "nodejs", "powershell", "pwsh",
 }
 
+# Launchers and host-mutating utilities can turn an otherwise safe child argv
+# into arbitrary code execution or modify the MT runtime host. They remain
+# available after explicit operator review, but never execute autonomously.
+AUTO_REVIEW_ONLY_BINARIES = {
+    "sudo", "env", "xargs", "parallel", "timeout", "watch", "nohup",
+    "nice", "ionice", "setsid",
+    "apt", "apt-get", "dpkg", "pip", "pip2", "pip3", "npm", "gem", "bundle",
+    "go", "java", "javac", "jar", "gcc", "g++", "make", "cmake",
+    "git", "svn", "docker", "kubectl",
+    "rm", "rmdir", "mv", "cp", "dd", "tee", "chmod", "chown", "chgrp",
+    "mount", "umount", "systemctl", "service", "kill", "pkill", "killall",
+    "iptables", "ssh-copy-id",
+}
+
+# Environment variables with loader/interpreter semantics can hijack an
+# allowlisted executable before its own argv is processed.
+AUTO_DENIED_ENV_NAMES = {
+    "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH", "PYTHONPATH", "PYTHONHOME",
+    "BASH_ENV", "ENV", "SHELLOPTS", "PERL5OPT", "RUBYOPT", "NODE_OPTIONS",
+}
+
+_AUTO_REVIEW_FLAGS = {
+    "find": {"-delete", "-exec", "-execdir", "-ok", "-okdir"},
+    "nc": {"-e", "--exec", "-c"},
+    "ncat": {"-e", "--exec", "-c"},
+    "socat": {"exec", "system"},
+}
+
 
 def is_allowlisted_command(command: Optional[str]) -> Optional[str]:
     """Gate for the fully-autonomous auto-execute path (no human review).
@@ -310,21 +338,42 @@ def is_allowlisted_command(command: Optional[str]) -> Optional[str]:
         segment = segment.strip()
         if not segment:
             continue
-        tokens = segment.split()
+        try:
+            tokens = shlex.split(segment)
+        except ValueError as exc:
+            return f"Invalid command quoting: {exc}"
         idx = 0
-        # Skip leading environment variable assignments (FOO=bar cmd ...)
+        # Allow ordinary per-command values, but block variables that can alter
+        # executable resolution, dynamic linking, or interpreter startup.
         while idx < len(tokens) and _ENV_ASSIGNMENT_RE.match(tokens[idx]):
-            idx += 1
-        # Skip a leading sudo
-        if idx < len(tokens) and tokens[idx] == "sudo":
+            env_name = tokens[idx].split("=", 1)[0]
+            if env_name in AUTO_DENIED_ENV_NAMES:
+                return f"Environment variable '{env_name}' requires human review in autonomous mode"
             idx += 1
         if idx >= len(tokens):
             continue
-        binary = os.path.basename(tokens[idx])
+
+        executable = tokens[idx]
+        if "/" in executable or "\\" in executable:
+            return "Executable paths require human review in autonomous mode"
+        binary = os.path.basename(executable)
         if binary in AUTO_DENIED_BINARIES:
             return f"Interpreter '{binary}' requires human review in autonomous mode"
+        if binary in AUTO_REVIEW_ONLY_BINARIES:
+            return f"Launcher or host-mutating binary '{binary}' requires human review in autonomous mode"
         if binary not in ALLOWED_BINARIES:
             return f"Binary '{binary}' is not in the auto-execute allowlist"
+
+        review_flags = _AUTO_REVIEW_FLAGS.get(binary, set())
+        lowered_args = {token.lower().rstrip(";") for token in tokens[idx + 1:]}
+        if review_flags & lowered_args:
+            flag = sorted(review_flags & lowered_args)[0]
+            return f"Flag '{flag}' for '{binary}' requires human review in autonomous mode"
+        if binary == "socat" and any(
+            token.lower().startswith(("exec:", "system:"))
+            for token in tokens[idx + 1:]
+        ):
+            return "socat process execution requires human review in autonomous mode"
 
     return None
 
