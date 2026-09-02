@@ -98,9 +98,10 @@ def test_critique_revise_swaps_command():
     assert r["verdict"] == "revise" and "--batch" in r["command"]
 
 
-def test_critique_fails_open_on_error():
+def test_critique_fails_closed_on_error():
     orch = make_orch()
     s = _sess(); orch.sessions[s.session_id] = s
     orch.ai_connector.ask_raw_async = AsyncMock(side_effect=RuntimeError("boom"))
     r = _run(orch._vet_command(s.session_id, "nmap 10.0.0.5", "recon"))
-    assert r["verdict"] == "approve"  # fail-open
+    assert r["verdict"] == "reject"
+    assert "unavailable" in r["reason"]
