@@ -15,7 +15,7 @@ from typing import Any, Mapping, Optional
 _NODE_TYPES = {
     "target", "service", "endpoint", "finding", "observation",
     "proof_bundle", "artifact", "contract_plan", "code_analysis", "agent_task",
-    "source_file",
+    "source_file", "agent_graph",
 }
 _RELATIONS = {
     "has", "declares", "observed_on", "supports", "refutes", "proves",
@@ -405,4 +405,75 @@ class EvidenceGraph:
             "task_node_id": task_node,
             "observation_node_ids": observation_nodes,
             "artifact_node_ids": artifact_nodes,
+        }
+
+    def record_agent_graph(self, graph: Mapping[str, Any]) -> dict[str, Any]:
+        graph_id = str(graph.get("graph_id") or "")[:300]
+        if not graph_id:
+            raise EvidenceGraphError("agent graph id is required")
+        graph_node = self.add_node(
+            "agent_graph",
+            graph_id,
+            {
+                "kind": graph.get("kind"),
+                "schema": graph.get("schema"),
+                "objective": graph.get("objective"),
+                "capabilities": graph.get("capabilities") or [],
+                "summary": graph.get("summary") or {},
+                "graph_hmac_sha256": graph.get("graph_hmac_sha256"),
+                "updated_at": graph.get("updated_at"),
+            },
+            {"source": "agent-graph"},
+        )
+        target = str(graph.get("target") or "")[:2048]
+        target_node = self.add_node(
+            "target",
+            target or f"{graph_id}:target",
+            {"target": target},
+            {"source": "agent-graph"},
+        )
+        self.add_edge(graph_node, target_node, "planned_for")
+        task_nodes: dict[str, str] = {}
+        for task in list(graph.get("tasks") or [])[:30]:
+            if not isinstance(task, Mapping):
+                continue
+            task_id = str(task.get("task_id") or "")[:300]
+            if not task_id:
+                continue
+            node = self.add_node(
+                "agent_task",
+                f"{graph_id}:{task_id}",
+                task,
+                {
+                    "source": "agent-graph",
+                    "graph_id": graph_id,
+                    "role": task.get("role"),
+                },
+            )
+            task_nodes[task_id] = node
+            self.add_edge(graph_node, node, "has")
+        for task in list(graph.get("tasks") or [])[:30]:
+            if not isinstance(task, Mapping):
+                continue
+            node = task_nodes.get(str(task.get("task_id") or ""))
+            if not node:
+                continue
+            for dependency in list(task.get("dependencies") or [])[:30]:
+                dependency_node = task_nodes.get(str(dependency))
+                if dependency_node:
+                    self.add_edge(node, dependency_node, "depends_on")
+        checkpoint_id = self.checkpoint(
+            graph_id,
+            "agent-graph",
+            {
+                "summary": graph.get("summary") or {},
+                "updated_at": graph.get("updated_at"),
+                "graph_hmac_sha256": graph.get("graph_hmac_sha256"),
+            },
+        )
+        return {
+            "graph_node_id": graph_node,
+            "target_node_id": target_node,
+            "task_node_ids": task_nodes,
+            "checkpoint_id": checkpoint_id,
         }

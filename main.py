@@ -39,8 +39,14 @@ from core.orchestrator import Orchestrator
 from core.scanner import Scanner
 from core.storage import migrate_runtime_files
 from core.api_contracts import ContractPolicyError, plan_contract
+from core.agent_graph import (
+    AgentGraphPolicyError,
+    create_engagement_graph,
+    transition_engagement_graph,
+)
 from core.code_intelligence import CodeIntelligencePolicyError, analyze_source_bundle
 from core.evidence_graph import EvidenceGraph
+from core.model_router import ModelRouter, ModelRoutingPolicyError
 from core.proof_verifier import ProofPolicyError, evaluate_finding
 from core.validators import is_valid_target, is_cidr
 
@@ -393,6 +399,36 @@ class WhiteboxAnalyzeRequest(BaseModel):
     files: Dict[str, str]
 
 
+class AgentGraphCreateRequest(BaseModel):
+    """Create a signed, dependency-aware, non-executing engagement graph."""
+    target: str = Field(..., min_length=1, max_length=2048)
+    objective: str = Field(..., min_length=1, max_length=2000)
+    authorization_confirmed: bool
+    capabilities: List[str] = Field(default_factory=list, max_length=8)
+    sensitivity: str = Field(
+        "standard", pattern=r"^(standard|confidential|restricted)$"
+    )
+
+
+class AgentGraphTransitionRequest(BaseModel):
+    """Apply one policy-checked state transition to a signed graph."""
+    graph: Dict[str, Any]
+    task_id: str = Field(..., min_length=1, max_length=300)
+    event: str = Field(..., pattern=r"^(start|complete|reject|skip)$")
+    evidence_refs: List[str] = Field(default_factory=list, max_length=100)
+    result: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ModelRouteRequest(BaseModel):
+    """Plan a public, credential-free route for one bounded task role."""
+    role: str = Field(..., min_length=1, max_length=50)
+    sensitivity: str = Field(
+        "standard", pattern=r"^(standard|confidential|restricted)$"
+    )
+    estimated_context_tokens: int = Field(0, ge=0, le=250000)
+    independent_of: Optional[str] = Field(None, max_length=100)
+
+
 # API Endpoints
 @app.get("/")
 async def root():
@@ -554,6 +590,78 @@ async def analyze_whitebox_request(req: WhiteboxAnalyzeRequest):
 async def evidence_graph_stats():
     """Return aggregate graph counts without exposing evidence payloads."""
     return evidence_graph.stats()
+
+
+def _model_router() -> ModelRouter:
+    return ModelRouter.from_environment(
+        public_provider_catalog(),
+        ai_connector.provider,
+    )
+
+
+def _agent_graph_integrity_key() -> str:
+    return os.getenv("AGENT_GRAPH_SIGNING_KEY", "").strip() or API_AUTH_TOKEN
+
+
+@app.get("/api/model-routing/status")
+async def model_routing_status():
+    """Report routing configuration without provider credential names or values."""
+    try:
+        return _model_router().public_status()
+    except ModelRoutingPolicyError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/model-routing/plan")
+async def model_routing_plan(req: ModelRouteRequest):
+    """Plan a task route; this endpoint does not call a model."""
+    try:
+        return _model_router().route(
+            req.role,
+            sensitivity=req.sensitivity,
+            estimated_context_tokens=req.estimated_context_tokens,
+            independent_of=req.independent_of,
+        )
+    except ModelRoutingPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/agent-graphs/plan")
+async def plan_agent_graph(req: AgentGraphCreateRequest):
+    """Create and persist a signed task DAG without executing its tasks."""
+    try:
+        graph = create_engagement_graph(
+            req.target,
+            req.objective,
+            authorization_confirmed=req.authorization_confirmed,
+            allowlist=os.getenv("SCOPE_ALLOWLIST"),
+            integrity_key=_agent_graph_integrity_key(),
+            capabilities=req.capabilities,
+            model_router=_model_router(),
+            sensitivity=req.sensitivity,
+        )
+        evidence_graph.record_agent_graph(graph)
+        return graph
+    except (AgentGraphPolicyError, ModelRoutingPolicyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/agent-graphs/transition")
+async def transition_agent_graph(req: AgentGraphTransitionRequest):
+    """Advance one signed task after dependency and proof-policy checks."""
+    try:
+        graph = transition_engagement_graph(
+            req.graph,
+            req.task_id,
+            req.event,
+            integrity_key=_agent_graph_integrity_key(),
+            evidence_refs=req.evidence_refs,
+            result=req.result,
+        )
+        evidence_graph.record_agent_graph(graph)
+        return graph
+    except AgentGraphPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/adapters/nuclei/scan")

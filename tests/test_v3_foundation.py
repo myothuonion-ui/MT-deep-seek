@@ -80,6 +80,11 @@ def test_plugin_manifest_is_honest_about_planned_and_blocked_integrations():
     assert by_id["mt-proof-metrics"]["execution"] == "aggregate-only"
     assert by_id["mt-code-intelligence"]["classification"] == "candidate-only"
     assert by_id["mt-evidence-graph"]["execution"] == "local-storage"
+    assert by_id["mt-agent-graph"]["execution"] == "signed-state-machine"
+    assert (
+        by_id["mt-model-router"]["execution"]
+        == "disabled-by-default-policy-router"
+    )
     assert by_id["playwright-browser"]["status"] == "adapter-ready"
     assert not by_id["playwright-browser"]["enabled_by_default"]
     assert not by_id["playwright-browser"]["auto_install"]
@@ -114,4 +119,3 @@ def test_command_scope_extracts_urls_and_ips():
     assert "outside SCOPE_ALLOWLIST" in autonomous_scope_rejection(
         "curl https://evil.example/", "10.10.10.0/24,*.example.test"
     )
-
