@@ -79,8 +79,8 @@ class AIResponse(BaseModel):
     ]
 
 
-class KMN_AI_Connector:
-    """Backward-compatible connector for every MT Pentester AI provider."""
+class MTPentesterAIConnector:
+    """Provider-neutral connector for every MT Pentester AI provider."""
     
     def __init__(self, provider: str = None, api_key: Optional[str] = None,
                  local_model: Optional[str] = None, ollama_url: Optional[str] = None,
@@ -541,6 +541,6 @@ class KMN_AI_Connector:
 
 
 # Helper function for backward compatibility
-def get_ai_connector(provider: str = "local", api_key: Optional[str] = None) -> KMN_AI_Connector:
+def get_ai_connector(provider: str = "local", api_key: Optional[str] = None) -> MTPentesterAIConnector:
     """Factory function to get AI connector instance."""
-    return KMN_AI_Connector(provider=provider, api_key=api_key)
+    return MTPentesterAIConnector(provider=provider, api_key=api_key)

@@ -50,7 +50,7 @@ def _sample_report():
 
 
 def _render():
-    path = os.path.join(tempfile.gettempdir(), "kmn_test_report.md")
+    path = os.path.join(tempfile.gettempdir(), "mt_test_report.md")
     generate_markdown_report(_sample_report(), output_path=path)
     with open(path, encoding="utf-8") as fh:
         return fh.read()
@@ -88,6 +88,6 @@ def test_markdown_includes_plan_steering_and_findings():
 
 
 def test_markdown_report_writes_file():
-    path = os.path.join(tempfile.gettempdir(), "kmn_test_report2.md")
+    path = os.path.join(tempfile.gettempdir(), "mt_test_report2.md")
     out = generate_markdown_report(_sample_report(), output_path=path)
     assert out == path and os.path.getsize(path) > 500

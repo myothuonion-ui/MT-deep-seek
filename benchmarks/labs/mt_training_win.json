@@ -1,5 +1,5 @@
 {
-  "lab": "KMN-Training-Win",
+  "lab": "MT-Training-Win",
   "description": "Windows Server 2019 training lab (192.168.100.194). Ground-truth vulnerability set used to score autonomous engagement coverage.",
   "match_notes": "An item is 'touched' if ANY of its `any` signals appears anywhere in the report text (case-insensitive substring), and 'confirmed' if a signal appears in a confirmed section (Confirmed Compromises / Credentials Captured / Vulnerability Findings). Signals are chosen to be specific enough to avoid inflated matches.",
   "items": [
@@ -26,14 +26,14 @@
     {"id": "net.ftp_write", "category": "network_fileshare", "title": "FTP arbitrary file write / upload", "any": ["ftp upload", "stor ", "arbitrary file write", "ftp put"]},
     {"id": "net.ftp_weak", "category": "network_fileshare", "title": "FTP weak user credentials", "any": ["ftpuser:password", "ftp weak cred", "ftp brute"]},
 
-    {"id": "rad.ssh_weak", "category": "remote_admin_db", "title": "SSH weak credentials", "any": ["backup:123456", "password123!", "ssh weak", "khit minnyo:password"]},
+    {"id": "rad.ssh_weak", "category": "remote_admin_db", "title": "SSH weak credentials", "any": ["backup:123456", "password123!", "ssh weak", "training user password"]},
     {"id": "rad.ssh_brute", "category": "remote_admin_db", "title": "SSH susceptible to brute-force", "any": ["hydra ssh", "ssh brute", "password dictionary", "medusa ssh", "ncrack ssh"]},
     {"id": "rad.winrm_http", "category": "remote_admin_db", "title": "WinRM unencrypted HTTP transport", "any": ["winrm", "5985", "unencrypted http"]},
     {"id": "rad.winrm_basic", "category": "remote_admin_db", "title": "WinRM basic auth / evil-winrm access", "any": ["evil-winrm", "winrm basic", "basic authentication"]},
     {"id": "rad.rdp_nla", "category": "remote_admin_db", "title": "RDP NLA disabled", "any": ["nla disabled", "network level authentication", "rdp-ntlm-info", "3389"]},
     {"id": "rad.rdp_brute", "category": "remote_admin_db", "title": "RDP susceptible to brute-force / spraying", "any": ["rdp brute", "rdp spray", "hydra rdp", "crowbar", "xfreerdp"]},
     {"id": "rad.mysql_root_nopass", "category": "remote_admin_db", "title": "MySQL remote root access, no/weak password", "any": ["root/system", "root@localhost", "grant all privileges", "mysql -h", "mysql -u root"]},
-    {"id": "rad.mysql_weak", "category": "remote_admin_db", "title": "MySQL weak user credentials", "any": ["kmn:creator_28", "mysql weak cred"]},
+    {"id": "rad.mysql_weak", "category": "remote_admin_db", "title": "MySQL weak user credentials", "any": ["training db credentials", "mysql weak cred"]},
     {"id": "rad.mysql_outfile", "category": "remote_admin_db", "title": "MySQL arbitrary file write via INTO OUTFILE", "any": ["into outfile", "into dumpfile", "lib_mysqludf_sys", "udf"]},
 
     {"id": "win.llmnr", "category": "windows_system", "title": "LLMNR / NBT-NS enabled (Responder MITM)", "any": ["llmnr", "nbt-ns", "responder", "nbns poisoning"]},

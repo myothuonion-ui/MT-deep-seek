@@ -6,7 +6,7 @@ vulnerability set and prints a coverage score — so every future change can be
 judged by a number instead of a feeling.
 
 Usage:
-    python benchmarks/score.py <report.md> [--lab benchmarks/labs/kmn_training_win.json] [--json]
+    python benchmarks/score.py <report.md> [--lab benchmarks/labs/mt_training_win.json] [--json]
     python benchmarks/score.py --report-text "<raw text>" --lab <lab.json>
 
 Scoring (per ground-truth item):
@@ -131,7 +131,7 @@ def print_report(res: Dict) -> None:
 
 def _default_lab() -> str:
     return os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "labs", "kmn_training_win.json")
+                        "labs", "mt_training_win.json")
 
 
 def main(argv=None) -> int:

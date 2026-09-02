@@ -1,6 +1,6 @@
 # MT Security Hardening
 
-Pinned baseline: KMN-CyberSeek v2.3.3, commit `3e8b08a36c6af989f30c1d564f1a1c00579dbf43`.
+Inherited-source provenance and the pinned baseline are recorded in `NOTICE`.
 
 ## Application hardening already applied
 

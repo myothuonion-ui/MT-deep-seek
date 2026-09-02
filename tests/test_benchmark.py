@@ -67,7 +67,7 @@ def test_split_confirmed_sections_stops_at_next_heading():
 
 def test_real_lab_file_is_wellformed():
     lab = load_lab(_default_lab())
-    assert lab["lab"] == "KMN-Training-Win"
+    assert lab["lab"] == "MT-Training-Win"
     items = lab["items"]
     assert len(items) >= 30
     ids = set()

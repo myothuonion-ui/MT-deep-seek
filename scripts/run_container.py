@@ -14,7 +14,12 @@ import subprocess
 import sys
 import time
 import urllib.request
+from pathlib import Path
 from typing import List
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from core.storage import migrate_runtime_files
 
 
 CHILDREN: List[subprocess.Popen] = []
@@ -81,7 +86,9 @@ def main() -> int:
     backend_port = os.getenv("BACKEND_PORT", "6000")
     frontend_port = os.getenv("FRONTEND_PORT", "8501")
 
-    os.makedirs(os.path.dirname(os.getenv("DB_PATH", "/app/data/kmn_cyberseek.db")), exist_ok=True)
+    db_path = Path(os.getenv("DB_PATH", "/app/data/mt_pentester.db")).expanduser()
+    os.makedirs(db_path.parent, exist_ok=True)
+    migrate_runtime_files(db_path.parent)
 
     _spawn([sys.executable, "main.py"])
     try:

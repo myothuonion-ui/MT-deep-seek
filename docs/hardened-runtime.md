@@ -17,12 +17,14 @@ inside one restricted container boundary.
 - `ALLOW_UNSCOPED_TARGETS=false`
 - secret-bearing reports disabled
 - services supervised without shell invocation
+- Nmap and Nuclei smoke-tested under the same non-root/capability boundary
+- pinned, read-only Nuclei templates and Claude-BugHunter knowledge assets
 
 This profile intentionally does **not** grant raw-socket or other elevated
-capabilities. Some low-level scanning tools may therefore be unavailable or may
-fall back to less privileged modes. Do not weaken the profile globally; if a
-specific authorized lab requires an extra capability, treat that as a separate,
-reviewed environment decision.
+capabilities. Nmap uses TCP connect scanning; raw SYN/OS-detection modes are not
+available. Do not weaken the profile globally. If a specific authorized lab
+requires an extra capability, treat that as a separate reviewed environment
+decision.
 
 ## Start
 
@@ -52,6 +54,15 @@ The Python base image is version-pinned (`python:3.11.13-slim-bookworm`). For
 release-grade bit-for-bit provenance, a release maintainer may additionally pin
 the base image digest for the chosen registry mirror and record that digest in
 the release notes.
+
+## Production deployment checklist
+
+The Compose profile is a secure single-host baseline, not a complete production
+platform. Before exposing it beyond localhost, add an authenticated TLS reverse
+proxy, secret-manager injection, encrypted backups with restore drills, external
+logs/metrics, image/SBOM signing, an egress policy, and deployment-specific
+availability/incident-response procedures. Keep the API ports private; CORS is
+not a network security boundary.
 
 ## Benchmark evidence
 

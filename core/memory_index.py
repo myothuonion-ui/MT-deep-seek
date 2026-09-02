@@ -63,7 +63,7 @@ class FindingsIndex:
     """In-memory hybrid retrieval index for one engagement session."""
 
     def __init__(self, connector=None, embed_model: Optional[str] = None):
-        # `connector` is a KMN_AI_Connector; used only to discover the Ollama URL
+        # `connector` is an MTPentesterAIConnector; used only to discover the Ollama URL
         # and provider. We never route strategy through it — this is pure retrieval.
         self._connector = connector
         self._docs: List[Dict] = []          # {id, text, meta, vec}

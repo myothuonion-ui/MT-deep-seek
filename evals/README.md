@@ -16,7 +16,7 @@ variance**.
 
 ```bash
 # Score against your configured provider (DeepSeek API or local Ollama).
-# Uses the same KMN_AI_Connector the live loop uses, so it exercises the real
+# Uses the same MTPentesterAIConnector the live loop uses, so it exercises the real
 # prompt + parsing path.
 python3 evals/run_evals.py --runs 3
 
