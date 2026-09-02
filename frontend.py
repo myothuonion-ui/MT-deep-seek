@@ -1478,7 +1478,7 @@ def show_session_overview(session_details: Dict):
                         st.download_button(
                             label="💾 Save Markdown (.md)",
                             data=resp.content,
-                            file_name=f"kmn_report_{session_id[:12]}.md",
+                            file_name=f"mt_report_{session_id[:12]}.md",
                             mime="text/markdown",
                             use_container_width=True,
                         )
@@ -1495,7 +1495,7 @@ def show_session_overview(session_details: Dict):
                         st.download_button(
                             label="💾 Save DOCX",
                             data=resp.content,
-                            file_name=f"kmn_report_{session_id[:12]}.docx",
+                            file_name=f"mt_report_{session_id[:12]}.docx",
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                             use_container_width=True,
                         )
@@ -2085,7 +2085,7 @@ def show_evidence(session_details: Dict):
             st.download_button(
                 label="💾 Save JSON",
                 data=_json.dumps(payload, indent=2, default=str),
-                file_name=f"kmn_report_{sid[:12]}.json",
+                file_name=f"mt_report_{sid[:12]}.json",
                 mime="application/json",
                 use_container_width=True,
             )
@@ -2100,7 +2100,7 @@ def show_evidence(session_details: Dict):
                         st.download_button(
                             label="💾 Save PDF",
                             data=resp.content,
-                            file_name=f"kmn_report_{sid[:12]}.pdf",
+                            file_name=f"mt_report_{sid[:12]}.pdf",
                             mime="application/pdf",
                             use_container_width=True,
                         )
@@ -2193,7 +2193,7 @@ def show_evidence(session_details: Dict):
             st.download_button(
                 label="💾 Save HTML",
                 data=html,
-                file_name=f"kmn_report_{sid[:12]}.html",
+                file_name=f"mt_report_{sid[:12]}.html",
                 mime="text/html",
                 use_container_width=True,
             )
@@ -3639,7 +3639,7 @@ def show_settings():
         api_timeout = st.number_input("API Timeout (seconds)", 1, 300, 30)
         
         st.markdown("#### Database")
-        db_path = st.text_input("Database Path", "kmn_cyberseek.db")
+        db_path = st.text_input("Database Path", "mt_pentester.db")
         backup_interval = st.selectbox("Backup Interval", ["Never", "Daily", "Weekly", "Monthly"])
         
         if backup_interval != "Never":
@@ -3648,7 +3648,7 @@ def show_settings():
         
         st.markdown("#### Logging")
         log_level = st.selectbox("Log Level", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
-        log_file = st.text_input("Log File", "kmn_cyberseek.log")
+        log_file = st.text_input("Log File", "mt_pentester.log")
         log_rotation = st.checkbox("Enable log rotation", value=True)
         
         if log_rotation:

@@ -4,6 +4,36 @@ All notable changes are documented here. Follows [Keep a Changelog](https://keep
 
 ---
 
+## [3.0.0-alpha.2] — 2026-09-02 — Independent runtime and adapters
+
+### Added
+- Policy-gated Nuclei 3.11.1 adapter with pinned templates, bounded output,
+  conservative template exclusions, rate/concurrency limits, and deny-by-default
+  authorization/scope checks.
+- Read-only Claude-BugHunter knowledge adapter pinned to a verified 82-skill
+  index; upstream scripts are not executed.
+- Optional BBOT 3.0.2 adapter limited to reviewed passive mapping presets with
+  dependency auto-install disabled.
+- Non-destructive database, log, SQLite sidecar, and Docker-volume migration
+  helpers plus a network-disabled one-shot migration profile.
+- Brand-independence CI gate and real non-root container/Nmap smoke test.
+
+### Changed
+- Retired the inherited bootstrap workflow/scripts and moved inherited-source
+  provenance to `NOTICE` while preserving the required original MIT notice.
+- Renamed runtime user/home, database, logs, reports, benchmark fixture, image,
+  and Docker volume to MT Pentester identifiers.
+- Replaced the broken README badge with the live `CI and security gates` badge.
+- Hardened adapter subprocesses so backend/API and AI-provider secrets are not
+  inherited by Nuclei or BBOT.
+
+### Security
+- Nuclei and Claude-BugHunter assets are pinned; the Nuclei binary archive is
+  verified against the official release SHA-256 before installation.
+- All adapter commands use typed argument vectors with `shell=False`, bounded
+  output, process-group timeout cleanup, authenticated API access, explicit
+  authorization confirmation, and `SCOPE_ALLOWLIST` enforcement.
+
 ## [3.0.0-alpha.1] — 2026-08-31 — MT Pentester foundation
 
 ### Added
@@ -76,7 +106,7 @@ capability is additive and, where it changes loop behaviour, gated behind flags
 
 ### Added
 - **M0 — Benchmark harness.** `benchmarks/score.py` scores an engagement report
-  against a lab's ground-truth vulnerability set (`benchmarks/labs/kmn_training_win.json`,
+  against a lab's ground-truth vulnerability set (`benchmarks/labs/mt_training_win.json`,
   35 items) — turning "did it improve?" into a number (touched % + confirmed %,
   per-category, missed list). Dependency-free; unit-tested (`tests/test_benchmark.py`).
   **Baseline (v2.2.7 run):** touched 16/35 (45.7%), confirmed 1/35 (2.9%); web_cms

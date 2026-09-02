@@ -1,12 +1,13 @@
 # MT Pentester
 
-![Version](https://img.shields.io/badge/Version-3.0.0-alpha.1-brightgreen)
-![Python](https://img.shields.io/badge/Python-3.10%2B-green)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+[![CI and security gates](https://github.com/myothuonion-ui/MT-deep-seek/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/myothuonion-ui/MT-deep-seek/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-3.0.0--alpha.2-brightgreen)](_version.py)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
 Policy-gated, multi-provider AI penetration-testing platform for authorized environments. MT Pentester separates orchestration, model providers, capability plugins, evidence, and execution policy so new integrations do not bypass the security boundary.
 
-This project began as a security-hardened derivative of [KMN-CyberSeek](https://github.com/KhitMinnyo/KMN-CyberSeek), pinned to upstream v2.3.3 (`3e8b08a...`).
+License and inherited-source notices are recorded in [NOTICE](NOTICE); they do not imply sponsorship or endorsement of MT Pentester.
 
 ---
 
@@ -15,20 +16,22 @@ This project began as a security-hardened derivative of [KMN-CyberSeek](https://
 The strongest default runtime is `compose.hardened.yml`. It runs the application as a non-root user with a read-only root filesystem, dropped Linux capabilities, `no-new-privileges`, resource limits, localhost-only published ports and a mandatory explicit target scope.
 
 ```bash
-export API_AUTH_TOKEN='replace-with-a-long-random-secret'
+export API_AUTH_TOKEN="$(openssl rand -hex 32)"
 export SCOPE_ALLOWLIST='10.10.10.0/24,lab.example'
 docker compose -f compose.hardened.yml up --build
 ```
 
 Then open `http://127.0.0.1:8501`.
 
-The profile intentionally grants no raw-socket/elevated capabilities. Some low-level tools may therefore be unavailable or fall back to less privileged operation. Review `docs/hardened-runtime.md` before changing that boundary.
+The image includes Nmap, a checksum-verified Nuclei 3.11.1 binary, a pinned Nuclei template snapshot, and a pinned read-only Claude-BugHunter skill bundle. Nmap uses unprivileged connect scans under the hardened profile. BBOT is an optional external runtime because its GPL toolchain and dependency environment are intentionally isolated from the locked application environment.
+
+Review [the hardened runtime](docs/hardened-runtime.md), [tool adapters](docs/tool-adapters.md), and [data migration](docs/data-migration.md) before changing the containment boundary.
 
 ---
 
 ## Standard local installation
 
-**Prerequisites:** Python 3.10+, optional Nmap/security tooling, and Ollama or a DeepSeek API key if AI is required.
+**Prerequisites:** Python 3.10+, Nmap/security tooling for local runs, and Ollama or a configured cloud/gateway provider if AI is required.
 
 ```bash
 git clone https://github.com/myothuonion-ui/MT-deep-seek.git
@@ -46,11 +49,11 @@ cd MT-deep-seek
 Streamlit Frontend  (8501)
          │
 FastAPI Backend     (6000)
-   Orchestrator │ Policy Gate │ Evidence │ Plugin Registry
+   Orchestrator │ Policy Gate │ Evidence │ Capability Registry
           │           │
    Provider-neutral   │──── typed argv for autonomous actions
-   AI Connector       │──── reviewed shell for human-approved actions
-          │
+   AI Connector       │──── Nmap / Nuclei / passive BBOT adapters
+          │           │──── read-only Claude-BugHunter knowledge
  Ollama │ DeepSeek │ OpenRouter │ NVIDIA NIM │ Gemini │ LiteLLM
 ```
 
@@ -117,7 +120,7 @@ Credentials are read from runtime environment variables or container secrets. Th
 
 ### Capability registry
 
-`config/plugins.json` tracks the engines, skill packs, deterministic tools, knowledge sources, and benchmarks selected for the v3 roadmap. Its status field is authoritative: a roadmap/reference entry is not presented as a working integration.
+`config/plugins.json` tracks engines, skill packs, deterministic tools, knowledge sources, and benchmarks. `adapter-ready` means MT Pentester ships a policy-gated integration; `/api/plugins` separately reports whether its runtime is installed. Roadmap/reference entries are never presented as working integrations.
 
 ### Ports
 
@@ -133,10 +136,10 @@ DOCS_PORT=3500
 
 - `requirements.lock` contains the exact Python dependency snapshot.
 - `scripts/verify_reproducible.py` rejects ranges, VCS/URL lock entries and missing direct dependencies.
-- `Dockerfile.hardened` installs the lock with `--no-deps` and runs as UID/GID 10001.
+- `Dockerfile.hardened` installs the lock with `--no-deps`, pins external assets, and runs as UID/GID 10001.
 - GitHub Actions references are pinned to immutable commit SHAs.
 - `pip-audit` is a blocking dependency-vulnerability gate.
-- CI builds and smoke-tests the hardened image on every `main`/`agent/**` change.
+- CI runs the full non-root container, probes its health endpoint, and verifies a real Nmap TCP-connect scan without added Linux capabilities.
 
 ---
 
@@ -146,7 +149,7 @@ The documented v2.2.7 pre-coverage-engine baseline is **45.7% touched / 2.9% con
 
 ```bash
 python benchmarks/record_evidence.py /path/to/current_report.md \
-  --lab benchmarks/labs/kmn_training_win.json \
+  --lab benchmarks/labs/mt_training_win.json \
   --out benchmarks/evidence/current_score.json
 ```
 
@@ -159,6 +162,8 @@ Only score/provenance metadata is committed. The raw report stays outside Git be
 - [Security hardening](SECURITY_HARDENING.md)
 - [AI providers and LiteLLM](docs/ai-providers.md)
 - [Hardened runtime](docs/hardened-runtime.md)
+- [Tool adapters](docs/tool-adapters.md)
+- [Data migration](docs/data-migration.md)
 - [Coverage benchmarks](benchmarks/README.md)
 - [Features & Architecture Detail](features.md)
 - [Changelog](change_log.md)
@@ -175,4 +180,4 @@ Only use against systems you own or have explicit written permission to test. Th
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT for MT Pentester contributions — see [LICENSE](LICENSE). Required inherited and third-party attribution is retained in [NOTICE](NOTICE).

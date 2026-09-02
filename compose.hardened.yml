@@ -8,9 +8,9 @@ services:
     read_only: true
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=256m,mode=1777
-      - /home/kmn/.cache:rw,nosuid,nodev,size=64m,mode=0700
+      - /home/mt/.cache:rw,nosuid,nodev,size=64m,mode=0700
     volumes:
-      - kmn-data:/app/data
+      - mt-pentester-data:/app/data
     environment:
       API_AUTH_TOKEN: ${API_AUTH_TOKEN:?Set API_AUTH_TOKEN before starting hardened mode}
       SCOPE_ALLOWLIST: ${SCOPE_ALLOWLIST:?Set an explicit authorized target allowlist}
@@ -31,8 +31,8 @@ services:
       LITELLM_API_BASE: ${LITELLM_API_BASE:-http://host.docker.internal:4000/v1}
       LITELLM_MODEL: ${LITELLM_MODEL:-planner-strong}
       INCLUDE_SECRETS_IN_REPORTS: "false"
-      DB_PATH: /app/data/kmn_cyberseek.db
-      LOG_FILE: /app/data/backend.log
+      DB_PATH: /app/data/mt_pentester.db
+      LOG_FILE: /app/data/mt_pentester.log
       BACKEND_HOST: 0.0.0.0
       BACKEND_PORT: "6000"
       FRONTEND_PORT: "8501"
@@ -53,4 +53,5 @@ services:
       - "host.docker.internal:host-gateway"
 
 volumes:
-  kmn-data:
+  mt-pentester-data:
+    name: ${MT_DATA_VOLUME:-mt-pentester-data}

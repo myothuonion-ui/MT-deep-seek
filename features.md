@@ -233,5 +233,5 @@ MT Pentester/
 │   └── test_validators.py
 ├── features.md              # Feature detail + API reference + project structure
 ├── change_log.md            # Version history
-└── kmn_cyberseek.db         # SQLite database (auto-created on first run)
+└── mt_pentester.db          # SQLite database (auto-created on first run)
 ```

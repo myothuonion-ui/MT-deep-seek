@@ -18,7 +18,7 @@ Usage
 
 Exit codes: 0 = ran (or self-check ok); 2 = no provider configured; 1 = harness error.
 
-The harness reuses the real KMN_AI_Connector, so it exercises the exact prompt and
+The harness reuses the real MTPentesterAIConnector, so it exercises the exact prompt and
 parsing path the live loop uses.
 """
 
@@ -66,12 +66,12 @@ async def _decide(connector, scenario):
 
 async def run_provider(runs):
     try:
-        from ai.connector import KMN_AI_Connector
+        from ai.connector import MTPentesterAIConnector
     except Exception as e:
         print(f"[error] cannot import connector (install requirements.txt?): {e}")
         return 1
 
-    connector = KMN_AI_Connector()
+    connector = MTPentesterAIConnector()
     if connector.provider == "api" and not connector.api_key:
         print("[skip] No DeepSeek API key and provider is 'api'. "
               "Set DEEPSEEK_API_KEY or configure local Ollama, then re-run.")

@@ -16,5 +16,11 @@ env/
 *.db-wal
 *.db-shm
 
+# Generated CI/security reports
+bandit-report.json
+pip-audit.json
+container-smoke.log
+nmap-smoke.txt
+
 # OS
 .DS_Store

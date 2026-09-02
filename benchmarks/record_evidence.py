@@ -19,7 +19,7 @@ from pathlib import Path
 from score import load_lab, score
 
 HERE = Path(__file__).resolve().parent
-DEFAULT_LAB = HERE / "labs" / "kmn_training_win.json"
+DEFAULT_LAB = HERE / "labs" / "mt_training_win.json"
 
 
 def sha256(path: Path) -> str:

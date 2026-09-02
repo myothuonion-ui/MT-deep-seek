@@ -10,6 +10,7 @@ import logging
 import os
 import secrets
 import sys
+from pathlib import Path
 from urllib.parse import urlparse
 from dotenv import load_dotenv, set_key
 load_dotenv()
@@ -23,11 +24,19 @@ from pydantic import BaseModel, Field, field_validator
 import uvicorn
 import httpx
 
-from ai.connector import KMN_AI_Connector
+from adapters import (
+    AdapterError,
+    AdapterUnavailableError,
+    BBOTAdapter,
+    ClaudeBugHunterAdapter,
+    NucleiAdapter,
+)
+from ai.connector import MTPentesterAIConnector
 from ai.providers import get_provider, normalize_provider, public_provider_catalog
 from core.plugin_registry import PluginRegistry
 from core.orchestrator import Orchestrator
 from core.scanner import Scanner
+from core.storage import migrate_runtime_files
 from core.validators import is_valid_target, is_cidr
 
 # Single source of truth for the version (see _version.py / bump_version.py).
@@ -129,8 +138,10 @@ async def enforce_api_key(request: Request, call_next):
 # Global instances
 ai_provider = os.getenv("AI_PROVIDER")
 # If AI_PROVIDER is not set, let the connector auto-detect based on API key presence
-ai_connector = KMN_AI_Connector(provider=ai_provider)
+ai_connector = MTPentesterAIConnector(provider=ai_provider)
 scanner = Scanner()
+_configured_db_path = Path(os.getenv("DB_PATH", "mt_pentester.db")).expanduser()
+migrate_runtime_files(_configured_db_path.parent)
 orchestrator = Orchestrator(ai_connector, scanner)
 plugin_registry = PluginRegistry()
 
@@ -298,9 +309,9 @@ class SecuritySettings(BaseModel):
 class AdvancedSettings(BaseModel):
     """Advanced backend settings persisted to .env."""
     log_level: str = "INFO"
-    log_file: str = "backend.log"
+    log_file: str = "mt_pentester.log"
     debug: bool = False
-    db_path: str = "kmn_cyberseek.db"
+    db_path: str = "mt_pentester.db"
     full_auto_mode: bool = False
     ollama_context_window: int = 8192
 
@@ -318,6 +329,24 @@ class ScheduledScanRequest(BaseModel):
 class ThreatIntelRequest(BaseModel):
     """Request to research a topic on the open web (see core/threat_intel.py)."""
     topic: str = Field(..., min_length=1, max_length=200, description="Topic to research, e.g. 'Apache httpd' or 'latest critical CVEs'")
+
+
+class NucleiScanRequest(BaseModel):
+    """A bounded safe-active Nuclei scan against an explicitly authorized target."""
+    target: str = Field(..., min_length=1, max_length=2048)
+    authorization_confirmed: bool = Field(..., description="Operator confirms written authorization")
+    severities: List[str] = Field(default_factory=lambda: ["low", "medium", "high", "critical"])
+    rate_limit: int = Field(50, ge=1, le=500)
+    concurrency: int = Field(10, ge=1, le=50)
+    timeout_seconds: int = Field(600, ge=1, le=3600)
+
+
+class BBOTMapRequest(BaseModel):
+    """A passive-only BBOT attack-surface map request."""
+    target: str = Field(..., min_length=1, max_length=2048)
+    authorization_confirmed: bool = Field(..., description="Operator confirms written authorization")
+    preset: str = Field("subdomain-enum", pattern=r"^(subdomain-enum|code-enum)$")
+    timeout_seconds: int = Field(900, ge=1, le=3600)
 
 # API Endpoints
 @app.get("/")
@@ -386,6 +415,77 @@ async def list_ai_models(provider: str):
 async def list_plugins():
     """Return the capability/integration manifest and its honest implementation status."""
     return plugin_registry.public_catalog()
+
+
+def _adapter_response(result) -> dict:
+    """Return normalized findings without duplicating raw JSONL in the API body."""
+    return {
+        "adapter": result.adapter,
+        "returncode": result.returncode,
+        "duration_seconds": result.duration_seconds,
+        "findings_count": len(result.findings),
+        "findings": result.findings,
+        "diagnostics": result.stderr[-4000:],
+        "output_truncated": result.truncated,
+    }
+
+
+def _raise_adapter_http_error(exc: AdapterError) -> None:
+    status = 503 if isinstance(exc, AdapterUnavailableError) else 400
+    raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+
+@app.post("/api/adapters/nuclei/scan")
+async def run_nuclei_adapter(req: NucleiScanRequest):
+    """Run the reviewed Nuclei profile; DAST, OAST, code and headless modes stay disabled."""
+    try:
+        result = await asyncio.to_thread(
+            NucleiAdapter().run,
+            req.target,
+            authorization_confirmed=req.authorization_confirmed,
+            severities=tuple(req.severities),
+            rate_limit=req.rate_limit,
+            concurrency=req.concurrency,
+            timeout_seconds=req.timeout_seconds,
+        )
+    except AdapterError as exc:
+        _raise_adapter_http_error(exc)
+    return _adapter_response(result)
+
+
+@app.post("/api/adapters/bbot/map")
+async def run_bbot_adapter(req: BBOTMapRequest):
+    """Run BBOT with passive modules only; dependency auto-install remains disabled."""
+    try:
+        result = await asyncio.to_thread(
+            BBOTAdapter().run,
+            req.target,
+            authorization_confirmed=req.authorization_confirmed,
+            preset=req.preset,
+            timeout_seconds=req.timeout_seconds,
+        )
+    except AdapterError as exc:
+        _raise_adapter_http_error(exc)
+    return _adapter_response(result)
+
+
+@app.get("/api/adapters/claude-bughunter/skills")
+async def list_claude_bughunter_skills(q: str = "", limit: int = 100):
+    """Search the pinned, read-only Claude-BugHunter skill index."""
+    try:
+        skills = ClaudeBugHunterAdapter().list_skills(q, limit)
+    except AdapterError as exc:
+        _raise_adapter_http_error(exc)
+    return {"skills": skills, "count": len(skills)}
+
+
+@app.get("/api/adapters/claude-bughunter/skills/{skill_name}")
+async def read_claude_bughunter_skill(skill_name: str):
+    """Read one skill from the pinned bundle without executing upstream scripts."""
+    try:
+        return ClaudeBugHunterAdapter().read_skill(skill_name)
+    except AdapterError as exc:
+        _raise_adapter_http_error(exc)
 
 @app.post("/api/start")
 async def start_session(target_request: TargetRequest):
@@ -514,13 +614,13 @@ async def download_session_report(session_id: str):
     try:
         import tempfile, os
         out_dir = tempfile.gettempdir()
-        out_path = os.path.join(out_dir, f"kmn_report_{session_id[:12]}.docx")
+        out_path = os.path.join(out_dir, f"mt_report_{session_id[:12]}.docx")
         generate_report(report_data, output_path=out_path)
     except Exception as e:
         logger.error(f"Report generation failed for session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
 
-    filename = f"kmn_report_{session_id[:12]}.docx"
+    filename = f"mt_report_{session_id[:12]}.docx"
     return FileResponse(
         path=out_path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -546,13 +646,13 @@ async def download_session_report_pdf(session_id: str):
     try:
         import tempfile
         out_dir = tempfile.gettempdir()
-        out_path = os.path.join(out_dir, f"kmn_report_{session_id[:12]}.pdf")
+        out_path = os.path.join(out_dir, f"mt_report_{session_id[:12]}.pdf")
         generate_pdf_report(report_data, output_path=out_path)
     except Exception as e:
         logger.error(f"PDF report generation failed for session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=f"PDF report generation failed: {e}")
 
-    filename = f"kmn_report_{session_id[:12]}.pdf"
+    filename = f"mt_report_{session_id[:12]}.pdf"
     return FileResponse(
         path=out_path,
         media_type="application/pdf",
@@ -615,13 +715,13 @@ async def download_session_report_md(session_id: str):
         from core.report_generator import generate_markdown_report
         import tempfile
         out_dir = tempfile.gettempdir()
-        out_path = os.path.join(out_dir, f"kmn_report_{session_id[:12]}.md")
+        out_path = os.path.join(out_dir, f"mt_report_{session_id[:12]}.md")
         generate_markdown_report(report_data, output_path=out_path)
     except Exception as e:
         logger.error(f"Markdown report generation failed for session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Markdown report generation failed: {e}")
 
-    filename = f"kmn_report_{session_id[:12]}.md"
+    filename = f"mt_report_{session_id[:12]}.md"
     return FileResponse(
         path=out_path,
         media_type="text/markdown",
@@ -1293,7 +1393,7 @@ async def update_ai_settings(settings: AISettings):
 
     # Re-initialize the global AI connector with new settings
     global ai_connector, orchestrator
-    ai_connector = KMN_AI_Connector(
+    ai_connector = MTPentesterAIConnector(
         provider=provider_code,
         api_key=settings.api_key or None,
         local_model=local_model,
@@ -1363,9 +1463,9 @@ async def update_advanced_settings(settings: AdvancedSettings):
     log_level = settings.log_level.upper() if settings.log_level.upper() in valid_levels else "INFO"
 
     set_key(env_path, "LOG_LEVEL",       log_level)
-    set_key(env_path, "LOG_FILE",        settings.log_file or "backend.log")
+    set_key(env_path, "LOG_FILE",        settings.log_file or "mt_pentester.log")
     set_key(env_path, "DEBUG",           str(settings.debug).lower())
-    set_key(env_path, "DB_PATH",         settings.db_path or "kmn_cyberseek.db")
+    set_key(env_path, "DB_PATH",         settings.db_path or "mt_pentester.db")
     set_key(env_path, "FULL_AUTO_MODE",          str(settings.full_auto_mode).lower())
     set_key(env_path, "OLLAMA_CONTEXT_WINDOW",    str(settings.ollama_context_window))
 

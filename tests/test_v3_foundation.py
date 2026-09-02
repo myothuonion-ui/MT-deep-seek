@@ -1,6 +1,6 @@
 import os
 
-from ai.connector import KMN_AI_Connector
+from ai.connector import MTPentesterAIConnector
 from ai.providers import normalize_provider, public_provider_catalog
 from core.plugin_registry import PluginRegistry
 from core.validators import (
@@ -27,7 +27,7 @@ def test_openrouter_connector_uses_dedicated_configuration():
     try:
         os.environ["OPENROUTER_MODEL"] = "vendor/model"
         os.environ["DEEPSEEK_API_KEY"] = "sk-stale-deepseek-key-123"
-        connector = KMN_AI_Connector(
+        connector = MTPentesterAIConnector(
             provider="openrouter",
             api_key="sk-openrouter-runtime-key-123",
         )
@@ -68,6 +68,9 @@ def test_plugin_manifest_is_honest_about_planned_and_blocked_integrations():
     assert by_id["mt-core"]["status"] == "native"
     assert by_id["shannon"]["status"] == "adapter-planned"
     assert by_id["cai"]["status"] == "blocked"
+    assert by_id["nuclei"]["status"] == "adapter-ready"
+    assert by_id["bbot"]["status"] == "adapter-ready"
+    assert by_id["claude-bughunter"]["status"] == "adapter-ready"
     assert not by_id["claude-bughunter"]["enabled_by_default"]
 
 

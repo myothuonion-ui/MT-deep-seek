@@ -9,10 +9,10 @@ coverage. This is the yardstick for every coverage-engine milestone (see
 
 ```bash
 # Score a downloaded Markdown report
-python benchmarks/score.py /path/to/kmn_report_<id>.md
+python benchmarks/score.py /path/to/mt_report_<id>.md
 
 # Choose a lab explicitly / machine-readable output
-python benchmarks/score.py report.md --lab benchmarks/labs/kmn_training_win.json --json
+python benchmarks/score.py report.md --lab benchmarks/labs/mt_training_win.json --json
 ```
 
 **Metrics**
@@ -20,7 +20,7 @@ python benchmarks/score.py report.md --lab benchmarks/labs/kmn_training_win.json
 - **confirmed** — a signal appears in a confirmed section (Confirmed Compromises / Credentials Captured / Vulnerability Findings).
 
 ## Labs
-- `labs/kmn_training_win.json` — Windows Server 2019 training lab (192.168.100.194), 35 ground-truth items across 5 categories.
+- `labs/mt_training_win.json` — Windows Server 2019 training lab (192.168.100.194), 35 ground-truth items across 5 categories.
 
 ## Historical baseline (pre-coverage-engine, v2.2.7)
 
@@ -51,7 +51,7 @@ Record a real run without committing the sensitive raw report:
 
 ```bash
 python benchmarks/record_evidence.py /path/to/current_report.md \
-  --lab benchmarks/labs/kmn_training_win.json \
+  --lab benchmarks/labs/mt_training_win.json \
   --out benchmarks/evidence/current_score.json
 ```
 

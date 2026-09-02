@@ -7,7 +7,13 @@ required = {
     "core/threat_intel.py": ["_url_is_public", "follow_redirects=False"],
     "core/report_generator.py": ["_display_secret", "INCLUDE_SECRETS_IN_REPORTS"],
     "ai/connector.py": ["Literal[\"low\", \"medium\", \"high\"]", "UNTRUSTED_SESSION_MEMORY"],
-    "Dockerfile.hardened": ["pip install --no-deps -r /app/requirements.lock", "USER 10001:10001"],
+    "Dockerfile.hardened": [
+        "pip install --no-deps -r /app/requirements.lock",
+        "USER 10001:10001",
+        "apt-get install -y --no-install-recommends ca-certificates curl nmap unzip",
+        "nuclei_sha=",
+        "CLAUDE_BUGHUNTER_COMMIT=",
+    ],
     "compose.hardened.yml": [
         "read_only: true",
         "cap_drop:",
@@ -17,6 +23,14 @@ required = {
         '"127.0.0.1:6000:6000"',
     ],
     "start.sh": ["requirements.lock", "pip install --no-deps -r requirements.lock"],
+    "adapters/base.py": [
+        "shell=False",
+        "start_new_session=True",
+        "require_authorized_scope",
+        "sanitized_adapter_environment(env)",
+    ],
+    "adapters/nuclei.py": ["-no-interactsh", "headless,file,code,javascript", "fuzz,dos,intrusive"],
+    "adapters/bbot.py": ["-rf", "passive", "--no-deps"],
 }
 for path, needles in required.items():
     text = Path(path).read_text(encoding="utf-8")
@@ -35,4 +49,12 @@ for path, needles in forbidden.items():
     for needle in needles:
         if needle in text:
             raise SystemExit(f"security gate failed: forbidden pattern {needle!r} in {path}")
+
+for removed_path in (
+    ".github/workflows/bootstrap-hardened.yml",
+    "scripts/harden_upstream.py",
+    "scripts/post_harden_fix.py",
+):
+    if Path(removed_path).exists():
+        raise SystemExit(f"security gate failed: retired bootstrap artifact remains: {removed_path}")
 print("MT security gate: PASS")

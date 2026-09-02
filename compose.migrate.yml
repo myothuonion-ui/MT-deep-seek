@@ -1,0 +1,31 @@
+services:
+  mt-data-migration:
+    build:
+      context: .
+      dockerfile: Dockerfile.hardened
+    image: mt-pentester:hardened
+    user: "10001:10001"
+    read_only: true
+    network_mode: none
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - legacy-data:/legacy-data:ro
+      - mt-pentester-data:/app/data
+    entrypoint:
+      - python
+      - scripts/migrate_legacy_data.py
+      - --source
+      - /legacy-data
+      - --destination
+      - /app/data
+    restart: "no"
+
+volumes:
+  legacy-data:
+    external: true
+    name: ${LEGACY_DATA_VOLUME:-mt-deep-seek_kmn-data}
+  mt-pentester-data:
+    name: ${MT_DATA_VOLUME:-mt-pentester-data}

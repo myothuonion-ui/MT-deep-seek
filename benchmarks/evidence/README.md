@@ -8,7 +8,7 @@ engagement data and should remain outside Git.
 
 ```bash
 python benchmarks/record_evidence.py /path/to/report.md \
-  --lab benchmarks/labs/kmn_training_win.json \
+  --lab benchmarks/labs/mt_training_win.json \
   --out benchmarks/evidence/current_score.json
 ```
 

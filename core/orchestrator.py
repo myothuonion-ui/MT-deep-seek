@@ -39,7 +39,7 @@ _CRED_PATTERNS: List[re.Pattern] = [
     re.compile(r'^([^:]+):([^:]+):\d+:\d+:::',  re.MULTILINE),  # /etc/shadow dump - user:hash
 ]
 
-from ai.connector import KMN_AI_Connector, AIResponse
+from ai.connector import MTPentesterAIConnector, AIResponse
 from core.scanner import Scanner
 from core.memory_index import FindingsIndex
 from core.validators import (
@@ -499,12 +499,12 @@ class Session:
 class Orchestrator:
     """Main orchestrator for AI-driven penetration testing."""
     
-    def __init__(self, ai_connector: KMN_AI_Connector, scanner: Scanner):
+    def __init__(self, ai_connector: MTPentesterAIConnector, scanner: Scanner):
         self.ai_connector = ai_connector
         self.scanner = scanner
         self.sessions: Dict[str, Session] = {}
         self.pending_commands: Dict[str, Dict] = {}  # command_id -> command_data
-        self.db_path = os.getenv("DB_PATH", "kmn_cyberseek.db")
+        self.db_path = os.getenv("DB_PATH", "mt_pentester.db")
         # Shared, non-session-scoped reference cache built by threat-intel research
         # (core/threat_intel.py) - see _load_threat_intel_cache()
         self.threat_intel_cache: List[Dict] = []

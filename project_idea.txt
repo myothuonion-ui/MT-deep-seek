@@ -49,7 +49,7 @@ Iterate: Capture new data (e.g., a new service found on a non-standard port) and
 - Ensure the Web UI reflects the current 'Kill Chain' stage of the target.
 
 6. Future Integration (Roadmap)
-KMN-Training-Win Integration: Specifically tuned to exploit Active Directory environments.
+MT-Training-Win Integration: Specifically tuned for authorized Active Directory lab validation.
 
 LLM Security: Capable of testing other AI implementations for Prompt Injection.
 
@@ -59,4 +59,3 @@ Remark
 "The system must maintain a Session State (SQLite/JSON). AI should refer to previous scan results and discovered credentials before deciding the next action."
 "Introduce an Action Approval Workflow. High-risk commands (e.g., Exploits, Brute-force) require a 'Confirm' click from the Web UI, while low-risk commands (e.g., Nmap, Directory listing) can be set to Full-Auto."
 "Automatic Evidence Collection. Every successful command and its output must be logged as evidence for the final report generation."
-

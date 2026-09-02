@@ -132,7 +132,7 @@ class MsfHandlerProcess:
 
     async def start(self) -> bool:
         """Launch msfconsole with multi/handler. Returns True on success."""
-        rc_path = f"/tmp/kmn_handler_{self.handler_id}.rc"
+        rc_path = f"/tmp/mt_handler_{self.handler_id}.rc"
         rc_lines = (
             f"use multi/handler\n"
             f"set PAYLOAD {self.payload}\n"
@@ -279,7 +279,7 @@ class MsfHandlerProcess:
             return f"[Error: session {msf_id} not tracked by this handler]"
 
         sess   = self._sessions[msf_id]
-        marker = f"__KMN_{uuid.uuid4().hex[:10]}__"
+        marker = f"__MT_{uuid.uuid4().hex[:10]}__"
 
         self._pending_marker = marker
         self._marker_event.clear()

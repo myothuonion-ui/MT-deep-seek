@@ -2,7 +2,7 @@ name: CI and security gates
 
 on:
   push:
-    branches: [main, "agent/**"]
+    branches: [main, "agent/**", "feature/**", "feat/**"]
   pull_request:
   workflow_dispatch:
 
@@ -29,8 +29,10 @@ jobs:
         run: python scripts/verify_reproducible.py
       - name: Security gate
         run: python scripts/security_gate.py
+      - name: Brand independence gate
+        run: python scripts/brand_gate.py
       - name: Compile
-        run: python -m compileall -q ai core main.py frontend.py scripts benchmarks
+        run: python -m compileall -q adapters ai core main.py frontend.py scripts benchmarks
       - name: Regression suite
         run: python tests/run_tests.py
       - name: Pytest
@@ -42,11 +44,52 @@ jobs:
       - name: Bandit advisory scan
         run: bandit -q -r ai core main.py scripts -x tests -f json -o bandit-report.json || true
       - name: Build hardened runtime image
-        run: docker build -f Dockerfile.hardened -t mt-deep-seek:hardened-ci .
-      - name: Hardened image smoke check
+        run: docker build -f Dockerfile.hardened -t mt-pentester:hardened-ci .
+      - name: Hardened image toolchain smoke check
         run: |
-          docker run --rm --entrypoint python mt-deep-seek:hardened-ci scripts/verify_reproducible.py
-          docker run --rm --entrypoint python mt-deep-seek:hardened-ci -c "import core.validators, ai.connector; print('container import smoke: PASS')"
+          docker run --rm --entrypoint python mt-pentester:hardened-ci scripts/verify_reproducible.py
+          docker run --rm --entrypoint nmap mt-pentester:hardened-ci --version
+          docker run --rm --entrypoint nuclei mt-pentester:hardened-ci -version
+          docker run --rm --entrypoint python mt-pentester:hardened-ci -c \
+            "from adapters import NucleiAdapter, ClaudeBugHunterAdapter; assert NucleiAdapter().status()['available']; assert NucleiAdapter().status()['templates_configured']; assert ClaudeBugHunterAdapter().status()['available']; print('adapter runtime smoke: PASS')"
+      - name: Real non-root container and Nmap smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="mt-pentester-ci-${GITHUB_RUN_ID}"
+          cleanup() {
+            docker logs "$name" > container-smoke.log 2>&1 || true
+            docker rm -f "$name" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker run -d --name "$name" \
+            --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,size=256m,mode=1777 \
+            --tmpfs /home/mt/.cache:rw,nosuid,nodev,size=64m,mode=0700 \
+            --tmpfs /app/data:rw,nosuid,nodev,size=128m,mode=0700,uid=10001,gid=10001 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --pids-limit 256 \
+            -e API_AUTH_TOKEN=ci-only-not-a-secret \
+            -e SCOPE_ALLOWLIST=127.0.0.1 \
+            -e ALLOW_UNSCOPED_TARGETS=false \
+            mt-pentester:hardened-ci
+          ready=false
+          for _ in $(seq 1 60); do
+            if docker exec "$name" python -c \
+              "import urllib.request; urllib.request.urlopen('http://127.0.0.1:6000/health', timeout=2).read()"; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            docker logs "$name"
+            exit 1
+          fi
+          test "$(docker exec "$name" id -u)" = "10001"
+          docker exec "$name" nmap -sT -Pn -n -p 6000 127.0.0.1 | tee nmap-smoke.txt
+          grep -Eq '6000/tcp[[:space:]]+open' nmap-smoke.txt
       - name: Upload security reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -55,4 +98,6 @@ jobs:
           path: |
             pip-audit.json
             bandit-report.json
+            container-smoke.log
+            nmap-smoke.txt
           if-no-files-found: ignore

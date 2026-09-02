@@ -1,18 +1,65 @@
 FROM python:3.11.13-slim-bookworm
 
+ARG TARGETARCH=amd64
+ARG NUCLEI_VERSION=3.11.1
+ARG NUCLEI_TEMPLATES_COMMIT=e5f19e6144135e107962bb943231413796fd7fe7
+ARG CLAUDE_BUGHUNTER_COMMIT=f032240d876c40465770ab4839e7257b9e7254e8
+
+LABEL org.opencontainers.image.title="MT Pentester" \
+      org.opencontainers.image.source="https://github.com/myothuonion-ui/MT-deep-seek" \
+      org.opencontainers.image.licenses="MIT"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
-    DB_PATH=/app/data/kmn_cyberseek.db \
-    LOG_FILE=/app/data/backend.log \
+    DB_PATH=/app/data/mt_pentester.db \
+    LOG_FILE=/app/data/mt_pentester.log \
     BACKEND_HOST=0.0.0.0 \
     BACKEND_PORT=6000 \
     FRONTEND_PORT=8501 \
-    DOCS_PORT=3500
+    DOCS_PORT=3500 \
+    XDG_CONFIG_HOME=/tmp/mt-config \
+    XDG_CACHE_HOME=/home/mt/.cache \
+    NUCLEI_TEMPLATES_PATH=/opt/nuclei-templates \
+    CLAUDE_BUGHUNTER_PATH=/opt/mt-pentester/plugins/claude-bughunter
 
-RUN groupadd --gid 10001 kmn \
-    && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin kmn
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl nmap unzip; \
+    rm -rf /var/lib/apt/lists/*; \
+    case "$TARGETARCH" in \
+      amd64) nuclei_sha="ea63d4ae232808cd7c6bc00d0142428e231fab59dae01042246097d195835ab6" ;; \
+      arm64) nuclei_sha="8044e3d9768ba0a744b2872c1a87e813006f013da97ca9f50f7661a4203bec07" ;; \
+      *) echo "unsupported target architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    curl --fail --show-error --silent --location \
+      "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION}_linux_${TARGETARCH}.zip" \
+      --output /tmp/nuclei.zip; \
+    echo "${nuclei_sha}  /tmp/nuclei.zip" | sha256sum --check --strict; \
+    unzip -q /tmp/nuclei.zip nuclei -d /tmp/nuclei-bin; \
+    install -m 0755 /tmp/nuclei-bin/nuclei /usr/local/bin/nuclei; \
+    rm -rf /tmp/nuclei.zip /tmp/nuclei-bin; \
+    mkdir -p /opt/nuclei-templates /opt/mt-pentester/plugins/claude-bughunter; \
+    curl --fail --show-error --silent --location \
+      "https://github.com/projectdiscovery/nuclei-templates/archive/${NUCLEI_TEMPLATES_COMMIT}.tar.gz" \
+      --output /tmp/nuclei-templates.tar.gz; \
+    tar -xzf /tmp/nuclei-templates.tar.gz --strip-components=1 -C /opt/nuclei-templates; \
+    test -f /opt/nuclei-templates/LICENSE.md; \
+    test -f /opt/nuclei-templates/templates-checksum.txt; \
+    curl --fail --show-error --silent --location \
+      "https://github.com/elementalsouls/Claude-BugHunter/archive/${CLAUDE_BUGHUNTER_COMMIT}.tar.gz" \
+      --output /tmp/claude-bughunter.tar.gz; \
+    tar -xzf /tmp/claude-bughunter.tar.gz --strip-components=1 -C /opt/mt-pentester/plugins/claude-bughunter; \
+    test -f /opt/mt-pentester/plugins/claude-bughunter/LICENSE; \
+    test -f /opt/mt-pentester/plugins/claude-bughunter/cbh/data/skill_index.json; \
+    rm -f /tmp/nuclei-templates.tar.gz /tmp/claude-bughunter.tar.gz; \
+    find /opt/nuclei-templates /opt/mt-pentester/plugins/claude-bughunter -type d -exec chmod 0555 {} +; \
+    find /opt/nuclei-templates /opt/mt-pentester/plugins/claude-bughunter -type f -exec chmod 0444 {} +; \
+    nmap --version | head -1; \
+    nuclei -version; \
+    groupadd --gid 10001 mt; \
+    useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin mt
 
 WORKDIR /app
 

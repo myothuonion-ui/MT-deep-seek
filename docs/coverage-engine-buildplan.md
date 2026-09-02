@@ -5,7 +5,7 @@ principles we build by. Target: v2.3.0.
 
 ## Principles
 1. **Measure first.** Every milestone is judged by the benchmark coverage number
-   against the KMN-Training-Win lab — not by feeling.
+   against the MT-Training-Win lab — not by feeling.
 2. **Vertical slices.** Prove a pattern on 2–3 services before widening.
 3. **Additive & modular.** New capability goes in new modules (`core/playbooks.py`,
    `core/coverage.py`, `core/bruteforce_worker.py`), never bloating
@@ -19,7 +19,7 @@ principles we build by. Target: v2.3.0.
 
 | # | Milestone | Deliverables | Gate |
 |---|-----------|--------------|------|
-| **M0** | Benchmark harness | `benchmarks/labs/kmn_training_win.json`, `benchmarks/score.py`, tests | baseline number recorded |
+| **M0** | Benchmark harness | `benchmarks/labs/mt_training_win.json`, `benchmarks/score.py`, tests | baseline number recorded |
 | **M1** | Playbook engine + coverage + progress | `core/playbooks.py`, `core/coverage.py`, progress formula, flag-gated wiring | coverage ↑ vs baseline on lab |
 | **M2** | Vuln validation (version-aware) | filter in `cve_lookup`/analysis, `confidence` + `potential/confirmed` | false-positive CVEs drop |
 | **M5** | Brute-force worker (parallel) | `core/bruteforce_worker.py`, producer→credential store | creds found on lab |
@@ -36,5 +36,5 @@ M0 and M5 are decoupled and can proceed in parallel with M1.
 - No regression in the existing suite.
 
 ## Baseline (pre-M1)
-Recorded by M0 against the last KMN-Training-Win report: see
+Recorded by M0 against the last MT-Training-Win report: see
 `benchmarks/README.md` after the first scoring run.

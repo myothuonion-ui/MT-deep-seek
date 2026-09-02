@@ -1,7 +1,7 @@
 import os
 from pydantic import ValidationError
 
-from ai.connector import AIResponse, KMN_AI_Connector
+from ai.connector import AIResponse, MTPentesterAIConnector
 from core.validators import is_allowlisted_command, is_target_in_scope
 from core.threat_intel import _url_is_public
 from core.report_generator import _display_secret
@@ -18,7 +18,7 @@ def test_explicit_local_provider_beats_stale_api_key():
     old = os.environ.get("DEEPSEEK_API_KEY")
     os.environ["DEEPSEEK_API_KEY"] = "sk-real-looking-stale-key-123456789"
     try:
-        c = KMN_AI_Connector(provider="local")
+        c = MTPentesterAIConnector(provider="local")
         assert c.provider == "local"
         assert c.api_key is None
     finally:

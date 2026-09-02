@@ -151,7 +151,7 @@ async def research_topic(topic: str, ai_connector) -> List[Dict]:
 
     Args:
         topic: free-text topic, e.g. "Apache httpd" or "latest critical CVEs 2026"
-        ai_connector: an ai.connector.KMN_AI_Connector instance, reused for the
+        ai_connector: an ai.connector.MTPentesterAIConnector instance, reused for the
             extraction step via its ask_raw_async() method (isolated prompt,
             see module docstring)
 

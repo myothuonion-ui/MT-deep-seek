@@ -21,7 +21,7 @@ A professional pentester works the opposite way: they follow a **methodology**
 (a per-service / per-technology checklist) and do not consider a service "done"
 until every applicable step has been attempted.
 
-### 1.2 Evidence (KMN-Training-Win lab, 2026-08-13)
+### 1.2 Evidence (MT-Training-Win lab, 2026-08-13)
 
 Against a Windows Server 2019 lab with ~35 seeded vulnerabilities, an autonomous
 run confirmed **1** (MySQL root → file read + WP hash dump), had active leads on

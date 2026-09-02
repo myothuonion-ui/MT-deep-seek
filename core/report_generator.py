@@ -120,7 +120,7 @@ def generate_report(session_report: Dict, output_path: Optional[str] = None) -> 
 
     Args:
         session_report: The dict returned by Orchestrator.get_session_report()
-        output_path: Where to write the .docx. Defaults to /tmp/kmn_report_{session_id}.docx
+        output_path: Where to write the .docx. Defaults to /tmp/mt_report_{session_id}.docx
 
     Returns:
         Absolute path to the generated file.
@@ -156,7 +156,7 @@ def generate_report(session_report: Dict, output_path: Optional[str] = None) -> 
     reflections: List[str]          = session.get("reflections", []) or []
 
     if not output_path:
-        output_path = f"/tmp/kmn_report_{session_id[:12]}.docx"
+        output_path = f"/tmp/mt_report_{session_id[:12]}.docx"
 
     doc = Document()
 
@@ -853,7 +853,7 @@ def generate_markdown_report(session_report: Dict, output_path: Optional[str] = 
     a("")
 
     if not output_path:
-        output_path = f"/tmp/kmn_report_{sid[:12]}.md"
+        output_path = f"/tmp/mt_report_{sid[:12]}.md"
     with open(output_path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(L))
     logger.info(f"Markdown report saved to {output_path}")
@@ -880,7 +880,7 @@ def generate_pdf_report(session_report: Dict, output_path: Optional[str] = None)
 
     Args:
         session_report: dict as returned by orchestrator.get_session_report()
-        output_path: where to write the file. Defaults to /tmp/kmn_report_<id>.pdf
+        output_path: where to write the file. Defaults to /tmp/mt_report_<id>.pdf
 
     Returns:
         Absolute path to the generated PDF.
@@ -912,7 +912,7 @@ def generate_pdf_report(session_report: Dict, output_path: Optional[str] = None)
     low_c  = sum(1 for v in vulns if v.get("risk_level") == "low")
 
     if output_path is None:
-        output_path = os.path.join("/tmp", f"kmn_report_{session_id}.pdf")
+        output_path = os.path.join("/tmp", f"mt_report_{session_id}.pdf")
 
     # ── PDF setup ──────────────────────────────────────────────────────────
     class _PDF(FPDF):
