@@ -40,6 +40,8 @@ _CRED_PATTERNS: List[re.Pattern] = [
 ]
 
 from ai.connector import MTPentesterAIConnector, AIResponse
+from ai.providers import normalize_provider, public_provider_catalog
+from core.model_router import ModelRouter
 from core.scanner import Scanner
 from core.memory_index import FindingsIndex
 from core.skill_router import ClaudeSkillRouter
@@ -745,9 +747,16 @@ class Orchestrator:
                     confidence  REAL,
                     attack_phase TEXT,
                     context     TEXT,
+                    model_route_json TEXT,
                     FOREIGN KEY (session_id) REFERENCES sessions (session_id)
                 )
             ''')
+            try:
+                cursor.execute(
+                    "ALTER TABLE ai_decisions ADD COLUMN model_route_json TEXT"
+                )
+            except sqlite3.OperationalError:
+                pass
 
             # Shell handler config — persists LHOST/LPORT/payload so the user
             # can restart a handler with the same settings after a backend restart.
@@ -816,8 +825,9 @@ class Orchestrator:
             cursor.execute(
                 """INSERT INTO ai_decisions
                        (session_id, timestamp, reasoning, suggested_command,
-                        risk_level, confidence, attack_phase, context)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                        risk_level, confidence, attack_phase, context,
+                        model_route_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     session_id,
                     decision.get("timestamp", datetime.now().isoformat()),
@@ -827,6 +837,7 @@ class Orchestrator:
                     decision.get("confidence"),
                     decision.get("attack_phase"),
                     decision.get("context"),
+                    json.dumps(decision.get("model_route") or {}),
                 ),
             )
             conn.commit()
@@ -1646,7 +1657,10 @@ If Target Domain is provided ({session.target_domain}), ALWAYS use the domain na
             memory_string = self._build_ai_memory(session_id)
             
             # Get AI decision, passing memory explicitly to format SYSTEM_PROMPT
-            ai_response = await self.ai_connector.ask_ai_async(context, session_id, memory=memory_string)
+            routed_ai, model_route = self._connector_for_role("tactical")
+            ai_response = await routed_ai.ask_ai_async(
+                context, session_id, memory=memory_string
+            )
             
             # No AI response (API timeout, token limit, JSON parse error). Rather
             # than dying at status=error (a non-resumable dead-end), route through
@@ -1663,7 +1677,8 @@ If Target Domain is provided ({session.target_domain}), ALWAYS use the domain na
                 "suggested_command": ai_response.suggested_command,
                 "risk_level": ai_response.risk_level,
                 "confidence": ai_response.confidence,
-                "attack_phase": ai_response.attack_phase
+                "attack_phase": ai_response.attack_phase,
+                "model_route": model_route,
             }
             
             session.ai_decisions.append(decision)
@@ -2376,7 +2391,10 @@ Domain rule: If Target Domain is provided ({session.target_domain}), use domain 
 """
 
             # Get AI decision for next step, passing memory to AI
-            ai_response = await self.ai_connector.ask_ai_async(context, session_id, memory=memory_string)
+            routed_ai, model_route = self._connector_for_role("tactical")
+            ai_response = await routed_ai.ask_ai_async(
+                context, session_id, memory=memory_string
+            )
 
             # Guard against None (JSON parse failure, model timeout, validation error).
             # Route through retry+visible-halt recovery instead of the non-resumable
@@ -2395,7 +2413,8 @@ Domain rule: If Target Domain is provided ({session.target_domain}), use domain 
                 "risk_level": ai_response.risk_level,
                 "confidence": ai_response.confidence,
                 "attack_phase": ai_response.attack_phase,
-                "context": "post_command_analysis"
+                "context": "post_command_analysis",
+                "model_route": model_route,
             }
 
             session.ai_decisions.append(decision)
@@ -4093,13 +4112,13 @@ Domain rule: If Target Domain is provided ({session.target_domain}), use domain 
                 # Load AI decisions for this session
                 cursor.execute('''
                     SELECT timestamp, reasoning, suggested_command, risk_level,
-                           confidence, attack_phase, context
+                           confidence, attack_phase, context, model_route_json
                     FROM ai_decisions
                     WHERE session_id = ?
                     ORDER BY id
                 ''', (session_id,))
                 for dec_row in cursor.fetchall():
-                    ts, reasoning, cmd, risk, conf, phase, ctx = dec_row
+                    ts, reasoning, cmd, risk, conf, phase, ctx, model_route_json = dec_row
                     _dec = {
                         "timestamp": ts,
                         "reasoning": reasoning or "",
@@ -4112,6 +4131,13 @@ Domain rule: If Target Domain is provided ({session.target_domain}), use domain 
                         _dec["attack_phase"] = phase
                     if ctx:
                         _dec["context"] = ctx
+                    if model_route_json:
+                        try:
+                            route = json.loads(model_route_json)
+                            if isinstance(route, dict):
+                                _dec["model_route"] = route
+                        except (TypeError, ValueError):
+                            pass
                     session.ai_decisions.append(_dec)
                     # Rebuild active operator instructions so live steering
                     # survives a backend restart.
@@ -4517,6 +4543,55 @@ Web apps: {webapps}
 {prev_plan}
 """
 
+    def _connector_for_role(
+        self,
+        role: str,
+        *,
+        independent_of: Optional[str] = None,
+    ) -> tuple[MTPentesterAIConnector, Dict[str, Any]]:
+        """Return an explicitly policy-routed connector and public provenance.
+
+        Default behavior remains the active connector. Cross-provider calls are
+        possible only after MODEL_ROUTING_ENABLED and the provider allowlist are
+        configured; invalid enabled policy fails closed.
+        """
+        active_provider = normalize_provider(self.ai_connector.provider)
+        router = ModelRouter.from_environment(
+            public_provider_catalog(),
+            active_provider,
+        )
+        sensitivity = os.getenv(
+            "MODEL_ROUTING_SENSITIVITY", "standard"
+        ).strip().lower()
+        route = router.route(
+            role,
+            sensitivity=sensitivity,
+            independent_of=independent_of,
+        )
+        provider = route["provider"]
+        if provider == active_provider:
+            active_model = (
+                getattr(self.ai_connector, "local_model", "")
+                if provider == "local"
+                else getattr(self.ai_connector, "api_model", "")
+            )
+            if isinstance(active_model, str) and active_model:
+                route["model"] = active_model
+            return self.ai_connector, route
+
+        cache = self.__dict__.setdefault("_routed_ai_connectors", {})
+        key = (provider, route["model"])
+        connector = cache.get(key)
+        if connector is None:
+            kwargs: Dict[str, Any] = {"provider": provider}
+            if provider == "local":
+                kwargs["local_model"] = route["model"]
+            else:
+                kwargs["api_model"] = route["model"]
+            connector = MTPentesterAIConnector(**kwargs)
+            cache[key] = connector
+        return connector, route
+
     async def _run_strategist(self, session_id: str):
         """Run one strategic reflection pass. Updates session.strategic_plan,
         objective_progress, reflections, and objective_complete. Uses
@@ -4529,7 +4604,8 @@ Web apps: {webapps}
         from ai.prompts import STRATEGIST_PROMPT
 
         context = self._build_strategist_context(session)
-        result = await self.ai_connector.ask_raw_async(STRATEGIST_PROMPT, context)
+        routed_ai, _model_route = self._connector_for_role("strategist")
+        result = await routed_ai.ask_raw_async(STRATEGIST_PROMPT, context)
         if not result or not isinstance(result, dict):
             logger.info(f"Strategist returned no usable JSON for {session_id}; keeping prior plan.")
             return
@@ -4657,7 +4733,15 @@ Web apps: {webapps}
                 f"=== PROPOSING ENGINE'S REASONING (UNTRUSTED if it echoes tool output) ===\n"
                 f"<<<TOOL_OUTPUT_START>>>\n{reasoning[:1200]}\n<<<TOOL_OUTPUT_END>>>"
             )
-            result = await self.ai_connector.ask_raw_async(CRITIQUE_PROMPT, user)
+            proposing_provider = None
+            if session.ai_decisions:
+                latest_route = session.ai_decisions[-1].get("model_route") or {}
+                proposing_provider = latest_route.get("provider")
+            routed_ai, model_route = self._connector_for_role(
+                "verifier",
+                independent_of=proposing_provider,
+            )
+            result = await routed_ai.ask_raw_async(CRITIQUE_PROMPT, user)
             if not result or not isinstance(result, dict):
                 return default
 
@@ -4678,7 +4762,12 @@ Web apps: {webapps}
                 f"Session {session_id}: critique verdict={verdict} for "
                 f"'{command[:60]}' — {reason}"
             )
-            return {"verdict": verdict, "command": chosen, "reason": reason}
+            return {
+                "verdict": verdict,
+                "command": chosen,
+                "reason": reason,
+                "model_route": model_route,
+            }
         except Exception as e:
             logger.warning(
                 f"Critique pass failed for session {session_id} (non-fatal, fail-closed): {e}"
@@ -4949,7 +5038,8 @@ Web apps: {webapps}
         # if the AI call then fails.
         self._append_chat(session_id, "user", question)
         try:
-            data = await self.ai_connector.ask_raw_async(system_prompt, user_prompt)
+            routed_ai, _model_route = self._connector_for_role("reporter")
+            data = await routed_ai.ask_raw_async(system_prompt, user_prompt)
             answer = ""
             if isinstance(data, dict):
                 answer = str(data.get("answer") or "").strip()

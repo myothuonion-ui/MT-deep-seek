@@ -4,6 +4,32 @@ All notable changes are documented here. Follows [Keep a Changelog](https://keep
 
 ---
 
+## [3.0.0-alpha.6] — 2026-09-02 — Agent graph and model routing
+
+### Added
+- HMAC-signed, dependency-aware engagement task graphs for scope policy,
+  mapping, white-box review, hypothesis, proof verification, and reporting.
+- Strict task transitions with non-skippable policy/proof stages, bounded
+  history, sensitive-result redaction, and proof-evidence requirements.
+- Durable agent-graph, task, dependency, target, and checkpoint provenance in
+  the local evidence graph.
+- Opt-in task-aware model routing for scoper, mapper, code-reviewer, strategist,
+  tactical, verifier, and reporter roles.
+- Authenticated route-status/plan and agent-graph plan/transition APIs.
+
+### Changed
+- Tactical, strategist, verifier, and operator-report model calls now use the
+  routing boundary. Default behavior remains the existing active connector.
+- AI decisions include public model-route provenance without credentials.
+
+### Security
+- Cross-provider routing is disabled by default and requires both explicit
+  enablement and a provider allowlist.
+- Confidential/restricted routes fail closed when no configured allowed
+  provider satisfies privacy policy.
+- Agent-graph transitions are HMAC verified and never execute tools or models;
+  execution policy remains a separate mandatory boundary.
+
 ## [3.0.0-alpha.5] — 2026-09-02 — Scoped browser and evidence graph
 
 ### Added

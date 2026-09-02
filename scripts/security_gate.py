@@ -20,6 +20,8 @@ required = {
         "- ALL",
         "no-new-privileges:true",
         "SCOPE_ALLOWLIST: ${SCOPE_ALLOWLIST:?",
+        "MODEL_ROUTING_ENABLED: ${MODEL_ROUTING_ENABLED:-false}",
+        "EVIDENCE_GRAPH_PATH: /app/data/mt_evidence_graph.db",
         '"127.0.0.1:6000:6000"',
     ],
     "start.sh": ["requirements.lock", "pip install --no-deps -r requirements.lock"],
@@ -57,6 +59,23 @@ required = {
         "PRAGMA foreign_keys = ON",
         "chmod(self.path, 0o600)",
     ],
+    "core/agent_graph.py": [
+        "hmac.compare_digest",
+        "graph_hmac_sha256",
+        "proof-verification completion requires",
+        "The graph does not execute tools or model calls.",
+    ],
+    "core/model_router.py": [
+        "MODEL_ROUTING_ALLOWED_PROVIDERS",
+        "routing-disabled-active-provider",
+        "\"credentials_exposed\": False",
+        "runtime_probed",
+    ],
+    "core/orchestrator.py": [
+        "_connector_for_role",
+        "MODEL_ROUTING_SENSITIVITY",
+        "\"model_route\": model_route",
+    ],
 }
 for path, needles in required.items():
     text = Path(path).read_text(encoding="utf-8")
@@ -84,4 +103,3 @@ for removed_path in (
     if Path(removed_path).exists():
         raise SystemExit(f"security gate failed: retired bootstrap artifact remains: {removed_path}")
 print("MT security gate: PASS")
-

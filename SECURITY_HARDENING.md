@@ -50,6 +50,25 @@ The evidence graph stores redacted nodes, edges, provenance, and engagement
 checkpoints in an owner-only local SQLite file. The public stats endpoint
 returns counts only; it does not dump evidence payloads.
 
+## Agent graph and model-routing boundary
+
+Agent graphs are non-executing HMAC-signed state machines. Tasks cannot start
+until dependencies complete, required policy/proof tasks cannot be skipped,
+and proof-verification completion requires a confirmed or rejected proof status
+plus an evidence reference. A graph transition never calls a tool or model;
+the eventual executor must re-check authorization, scope, approvals, and its
+own adapter policy. Graph nodes, dependencies, and checkpoints are persisted in
+the redacted evidence graph.
+
+Task-aware model routing is disabled by default. Disabled routing always
+preserves the active provider and reports when that provider does not meet a
+requested privacy tier; it never silently switches providers. Enabled
+cross-provider routing requires an explicit provider allowlist. Per-role routes
+must name configured, allowed providers that satisfy standard, confidential, or
+restricted privacy policy. Runtime reachability and context capacity are
+reported as not probed until a real call occurs. Provider credential names and
+values are never accepted or returned by the router.
+
 ## Runtime isolation and reproducibility
 
 The hardened profile adds `Dockerfile.hardened` + `compose.hardened.yml` with a non-root user, read-only root filesystem, dropped Linux capabilities, `no-new-privileges`, bounded tmpfs, localhost-only published ports, PID/memory/CPU limits and an explicit `SCOPE_ALLOWLIST` requirement. Child services are supervised by `scripts/run_container.py` without shell invocation.
