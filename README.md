@@ -1,7 +1,7 @@
 # MT Pentester
 
 [![CI and security gates](https://github.com/myothuonion-ui/MT-deep-seek/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/myothuonion-ui/MT-deep-seek/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-3.0.0--alpha.2-brightgreen)](_version.py)
+[![Version](https://img.shields.io/badge/version-3.0.0--alpha.3-brightgreen)](_version.py)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
@@ -24,6 +24,12 @@ docker compose -f compose.hardened.yml up --build
 Then open `http://127.0.0.1:8501`.
 
 The image includes Nmap, a checksum-verified Nuclei 3.11.1 binary, a pinned Nuclei template snapshot, and a pinned read-only Claude-BugHunter skill bundle. Nmap uses unprivileged connect scans under the hardened profile. BBOT is an optional external runtime because its GPL toolchain and dependency environment are intentionally isolated from the locked application environment.
+
+Claude-BugHunter is now methodology memory, not executable automation: MT routes
+only the top relevant bounded excerpts into the AI context with source
+provenance and untrusted-data guardrails. Autonomous commands remain separately
+scope checked, parsed to typed argv, and fail closed when high-risk verification
+is unavailable or malformed.
 
 Review [the hardened runtime](docs/hardened-runtime.md), [tool adapters](docs/tool-adapters.md), and [data migration](docs/data-migration.md) before changing the containment boundary.
 
