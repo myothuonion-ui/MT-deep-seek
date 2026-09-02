@@ -4,6 +4,26 @@ All notable changes are documented here. Follows [Keep a Changelog](https://keep
 
 ---
 
+## [3.0.0-alpha.3] — 2026-09-02 — Skill routing and fail-closed autonomy
+
+### Added
+- Automatic read-only Claude-BugHunter skill routing using the engagement phase,
+  objective, services, vulnerability labels, and latest command.
+- Bounded methodology context with pinned source provenance, explicit
+  untrusted-data guardrails, configurable skill/excerpt limits, and graceful
+  degradation when the bundle is unavailable.
+- Regression coverage for launcher/path/environment bypasses, skill selection,
+  excerpt limits, provenance, disabled/unavailable bundles, and verifier errors.
+
+### Security
+- Changed high-risk verifier failures and invalid responses from fail-open
+  approval to fail-closed manual review.
+- Routed command launchers, host-mutating utilities, executable paths, dangerous
+  loader/interpreter variables, and process-execution flags out of autonomous
+  execution while keeping reviewed execution available.
+- Applied the structural allowlist consistently to both global FULL_AUTO mode
+  and per-session automatic execution.
+
 ## [3.0.0-alpha.2] — 2026-09-02 — Independent runtime and adapters
 
 ### Added

@@ -548,3 +548,33 @@ def test_create_episode_summary_uses_session_episode_size():
     summary = orch._create_episode_summary(s.session_id)  # must not raise
     assert summary and "EPISODE 1 SUMMARY" in summary
     assert s.episode_summaries and s.episode_summaries[-1] == summary
+
+def test_verifier_provider_failure_is_fail_closed():
+    orch = _loop_orch()
+    session = make_session()
+    orch.sessions[session.session_id] = session
+    orch.ai_connector.ask_raw_async = AsyncMock(side_effect=RuntimeError("provider down"))
+
+    result = _run(orch._vet_command(
+        session.session_id,
+        "msfvenom -p linux/x64/shell_reverse_tcp",
+        "high-risk payload generation",
+    ))
+
+    assert result["verdict"] == "reject"
+    assert result["command"].startswith("msfvenom")
+    assert "unavailable" in result["reason"]
+
+
+def test_verifier_invalid_verdict_is_fail_closed():
+    orch = _loop_orch()
+    session = make_session()
+    orch.sessions[session.session_id] = session
+    orch.ai_connector.ask_raw_async = AsyncMock(return_value={
+        "verdict": "maybe",
+        "reason": "ambiguous",
+    })
+
+    result = _run(orch._vet_command(session.session_id, "nmap 10.0.0.1", "scan"))
+    assert result["verdict"] == "reject"
+

@@ -71,7 +71,9 @@ def test_plugin_manifest_is_honest_about_planned_and_blocked_integrations():
     assert by_id["nuclei"]["status"] == "adapter-ready"
     assert by_id["bbot"]["status"] == "adapter-ready"
     assert by_id["claude-bughunter"]["status"] == "adapter-ready"
-    assert not by_id["claude-bughunter"]["enabled_by_default"]
+    assert by_id["claude-bughunter"]["enabled_by_default"]
+    assert by_id["claude-bughunter"]["routing"] == "bounded-auto-context"
+    assert by_id["claude-bughunter"]["execution"] == "read-only"
 
 
 def test_autonomous_parser_produces_argv_without_shell():

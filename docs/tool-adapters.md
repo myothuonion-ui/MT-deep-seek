@@ -14,7 +14,7 @@ proxy settings, and tool-prefixed `BBOT_`/`NUCLEI_` settings are forwarded.
 | Nmap | Included | safe-active | Existing scanner plus unprivileged TCP-connect smoke test |
 | Nuclei 3.11.1 | Included | safe-active | Typed argv; bounded rate/concurrency; no DAST, OAST, headless, file, code, or JavaScript templates |
 | Nuclei templates | Included | safe-active | Read-only snapshot pinned to commit `e5f19e6144135e107962bb943231413796fd7fe7` |
-| Claude-BugHunter | Included | knowledge-only | Read-only index/content pinned to commit `f032240d876c40465770ab4839e7257b9e7254e8`; upstream scripts are not executed |
+| Claude-BugHunter | Included | knowledge-only | Automatically routes up to 3 relevant, bounded skill excerpts into untrusted AI context; pinned provenance; upstream scripts are not executed |
 | BBOT 3.0.2 | Optional | map-only | Typed argv; passive-module filter; dependency auto-install disabled |
 
 The live availability for every adapter is returned by `GET /api/plugins`.
@@ -59,6 +59,18 @@ The adapter searches `cbh/data/skill_index.json` and reads only an indexed
 `skills/<name>/SKILL.md` beneath the pinned bundle root. It rejects traversal,
 unknown names, oversized files, and malformed indexes. It never calls the
 bundle's shell scripts or terminal runner.
+
+The orchestrator now routes the most relevant methodology into each AI turn.
+Selection uses the engagement objective, phase, discovered services,
+vulnerability labels, and latest command. The default budget is three skills
+and 1,800 characters per excerpt, with the pinned source commit included in the
+memory payload. Skill text is explicitly marked untrusted and cannot override
+authorization, scope, approval, or typed-argv policy.
+
+Configure routing with `CLAUDE_SKILL_ROUTING`, `CLAUDE_SKILL_MAX`, and
+`CLAUDE_SKILL_EXCERPT_CHARS`. Set `CLAUDE_SKILL_ROUTING=false` to disable it.
+If the bundle is absent or invalid, routing degrades to no methodology context
+without weakening execution policy.
 
 ```bash
 curl --fail --silent \

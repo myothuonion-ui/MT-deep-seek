@@ -38,8 +38,17 @@ class PluginRegistry:
                 raise ValueError(f"Invalid plugin kind for {plugin_id}")
             if item.get("status") not in _VALID_STATUSES:
                 raise ValueError(f"Invalid plugin status for {plugin_id}")
-            if item.get("enabled_by_default") and item.get("status") != "native":
-                raise ValueError(f"Only native plugins may be enabled by default: {plugin_id}")
+            enabled = bool(item.get("enabled_by_default"))
+            safe_read_only_default = (
+                item.get("status") == "adapter-ready"
+                and item.get("mode_ceiling") == "knowledge-only"
+                and item.get("execution") == "read-only"
+            )
+            if enabled and item.get("status") != "native" and not safe_read_only_default:
+                raise ValueError(
+                    "Only native or explicitly read-only knowledge adapters may "
+                    f"be enabled by default: {plugin_id}"
+                )
             adapter = item.get("adapter")
             if item.get("status") == "adapter-ready":
                 if not isinstance(adapter, dict) or not all(
