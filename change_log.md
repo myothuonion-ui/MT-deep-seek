@@ -1,3 +1,18 @@
+## [3.0.0-alpha.7] — 2026-09-05
+
+- Add an executable, persistent Web assessment profile with same-origin GET
+  mapping, header review, controlled two-account fixture checks and Markdown reports.
+- Add UI/API creation, progress, cancel, interrupted-job resume and retest flows.
+- Bound requests/pages/time; pin resolved HTTP connections, refuse implicit
+  redirects, and require explicit IP/CIDR scope for non-public DNS destinations.
+- Store credential references only; keep raw response bodies out of storage and
+  model context. Sign executor evidence and findings; downgrade tampered reports.
+- Require trusted evidence validation for generic proof confirmation and retain
+  the high/critical independent-confirmation floor. Label confidence as a policy score.
+- Make local raw-model calls asynchronous so planner cancellation stays responsive.
+- Add loopback integration and trust-boundary regression tests. Capability limits
+  and validation details are recorded in docs/web-assessments.md.
+
 # Changelog
 
 All notable changes are documented here. Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventions.
@@ -514,3 +529,4 @@ New env: `COVERAGE_ENGINE`, `BRUTEFORCE_ENABLED`, `BRUTEFORCE_TIER`,
 - Manual approval workflow for HIGH-risk commands.
 - OSINT phase with Google Dorks.
 - `start.sh` with automatic port conflict resolution and venv management.
+

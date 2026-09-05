@@ -1,7 +1,7 @@
 # MT Pentester
 
 [![CI and security gates](https://github.com/myothuonion-ui/MT-deep-seek/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/myothuonion-ui/MT-deep-seek/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-3.0.0--alpha.6-brightgreen)](_version.py)
+[![Version](https://img.shields.io/badge/version-3.0.0--alpha.7-brightgreen)](_version.py)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
@@ -54,6 +54,29 @@ and no silent cross-provider transfer occurs. See
 [agent graph and model routing](docs/agent-graph-model-routing.md).
 
 Review [the hardened runtime](docs/hardened-runtime.md), [tool adapters](docs/tool-adapters.md), and [data migration](docs/data-migration.md) before changing the containment boundary.
+
+---
+
+## Executable Web assessments (alpha.7)
+
+Open **Web Assessment** in the sidebar to submit an authorized URL, allowed and
+excluded paths, page/request/time limits, and optional test-account references.
+A persistent worker maps same-origin GET pages, reviews response headers,
+performs explicitly configured two-account fixture checks and produces a
+Markdown report. Progress, cancellation, interrupted-job recovery and retesting
+are available in the UI and `/api/web-assessments` API.
+
+This is a bounded initial execution profile, **not a general autonomous exploit
+engine**. AI optionally ranks approved tasks; it does not generate commands or
+confirm findings. Form login, JavaScript browser exploration and broad mutation
+or exploit testing remain outside this profile. Optional source files produce a
+static map, not automatic runtime tests. See [Web assessments](docs/web-assessments.md)
+for setup, the exact confirmation rule, limits and the decision log.
+
+The generic proof API now treats submitted observation labels as untrusted.
+Only internal callers with a trusted artifact validator can confirm a proof;
+high/critical confirmation requirements cannot be disabled by the caller.
+The `confidence` field is a policy score, not a measured probability.
 
 ---
 
@@ -212,3 +235,4 @@ Only use against systems you own or have explicit written permission to test. Th
 ## License
 
 MIT for MT Pentester contributions — see [LICENSE](LICENSE). Required inherited and third-party attribution is retained in [NOTICE](NOTICE).
+

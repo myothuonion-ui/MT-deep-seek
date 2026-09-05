@@ -466,14 +466,18 @@ class MTPentesterAIConnector:
             if self.provider != "local":
                 return await self._ask_raw_api(system_prompt, user_prompt)
             else:
-                import asyncio
-                from concurrent.futures import ThreadPoolExecutor
-
-                loop = asyncio.get_running_loop()
-                with ThreadPoolExecutor() as executor:
-                    return await loop.run_in_executor(
-                        executor, lambda: self._ask_raw_local(system_prompt, user_prompt)
-                    )
+                # Async HTTP keeps a caller's cancellation/deadline responsive;
+                # a ThreadPoolExecutor context waits for a timed-out sync request.
+                payload = {
+                    "model": self.local_model,
+                    "prompt": f"{system_prompt}\n\n{user_prompt}",
+                    "stream": False,
+                    "options": {"temperature": 0.3, "num_ctx": self.context_window},
+                }
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(self.ollama_url, json=payload)
+                    response.raise_for_status()
+                    return self._extract_json(response.json().get("response", ""))
         except Exception as e:
             logger.warning(f"ask_raw_async failed (non-fatal): {e}")
             return None
@@ -544,3 +548,4 @@ class MTPentesterAIConnector:
 def get_ai_connector(provider: str = "local", api_key: Optional[str] = None) -> MTPentesterAIConnector:
     """Factory function to get AI connector instance."""
     return MTPentesterAIConnector(provider=provider, api_key=api_key)
+

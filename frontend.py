@@ -622,9 +622,9 @@ def main():
         # Navigation menu
         selected = option_menu(
             menu_title="Navigation",
-            options=["Dashboard", "New Session", "Active Sessions", "Command Console",
+            options=["Dashboard", "Web Assessment", "New Session", "Active Sessions", "Command Console",
                      "Threat Intel", "Capabilities", "Schedules", "History", "Docs", "Settings"],
-            icons=["speedometer2", "plus-circle", "list-task", "terminal",
+            icons=["speedometer2", "globe", "plus-circle", "list-task", "terminal",
                    "search", "boxes", "calendar-check", "clock-history", "book", "gear"],
             menu_icon="cast",
             default_index=0,
@@ -680,6 +680,8 @@ def main():
         # Main content based on selected navigation
         if selected == "Dashboard":
             show_dashboard()
+        elif selected == "Web Assessment":
+            show_web_assessment()
         elif selected == "New Session":
             show_new_session()
         elif selected == "Active Sessions":
@@ -698,6 +700,90 @@ def main():
             show_docs()
         elif selected == "Settings":
             show_settings()
+
+
+def show_web_assessment():
+    st.title("Web Assessment")
+    st.write("Assess an authorized website and download an evidence-backed report.")
+    st.caption("Current profile: bounded GET mapping, response-header review and controlled two-account API checks. Form login and general exploit discovery are not included.")
+    with st.form("web_assessment_create"):
+        target = st.text_input("Website URL", placeholder="https://your-authorized-site.example")
+        left, right = st.columns(2)
+        allowed = left.text_area("Allowed path prefixes (one per line)", value="/")
+        excluded = right.text_area("Excluded path prefixes (one per line)", value="/logout\n/admin/delete")
+        max_pages = st.number_input("Maximum pages", min_value=1, max_value=30, value=10)
+        max_requests = st.number_input("Maximum HTTP requests", min_value=2, max_value=200, value=40)
+        max_seconds = st.number_input("Time budget (seconds)", min_value=10, max_value=600, value=180)
+        ai_planning = st.checkbox("Use the configured AI to prioritize approved checks", value=False)
+        st.caption("AI receives task IDs and categories only. If it is unavailable, the approved checks use a fixed order.")
+        with st.expander("Test accounts and controlled API checks (optional)"):
+            st.caption("Use synthetic test data. Configure account secrets on the backend as MT_WEB_ACCOUNT_* environment variables; enter only their names here.")
+            account_rows = st.data_editor(
+                [{"name": "", "kind": "bearer", "secret_env": ""}], num_rows="dynamic", key="web_accounts")
+            check_rows = st.data_editor(
+                [{"url": "", "owner": "", "other": "", "marker": "", "ownership_confirmed": False}],
+                num_rows="dynamic", key="web_checks")
+            st.caption("Each marker must identify a synthetic fixture owned only by the owner account. Check ownership_confirmed only after verifying the other account should not have access.")
+        source_uploads = st.file_uploader("Source files for optional static mapping", accept_multiple_files=True,
+            type=["py", "js", "jsx", "ts", "tsx", "java", "go", "php", "rb", "cs"])
+        authorized = st.checkbox("I am authorized to test this website and these read-only paths and test accounts.")
+        submitted = st.form_submit_button("Start assessment")
+    if submitted:
+        try:
+            accounts = {row["name"]: {"kind": row["kind"], "secret_env": row["secret_env"]}
+                        for row in account_rows if row.get("name")}
+            checks = [row for row in check_rows if row.get("url")]
+            source_files = {f.name: f.getvalue().decode("utf-8") for f in source_uploads}
+            payload = {"target": target, "allowed_paths": [p.strip() for p in allowed.splitlines() if p.strip()],
+                       "excluded_paths": [p.strip() for p in excluded.splitlines() if p.strip()],
+                       "max_pages": int(max_pages), "max_requests": int(max_requests), "max_seconds": int(max_seconds),
+                       "ai_planning": ai_planning, "authorization_confirmed": authorized,
+                       "accounts": accounts, "authorization_checks": checks, "source_files": source_files}
+            response = api_session.post(f"{API_BASE}/web-assessments", json=payload, timeout=15)
+            if response.status_code == 202:
+                st.session_state.web_assessment_id = response.json()["id"]
+                st.success("Assessment queued. Refresh progress below to see results.")
+            else:
+                st.error(response.json().get("detail", "Assessment could not be created"))
+        except Exception:
+            st.error("Check the account fields, source file encoding and backend connection.")
+    st.divider()
+    try:
+        response = api_session.get(f"{API_BASE}/web-assessments", timeout=5)
+        response.raise_for_status()
+        jobs = response.json()["assessments"]
+        if not jobs:
+            st.info("No Web assessments yet.")
+            return
+        ids = [job["id"] for job in jobs]
+        chosen = st.selectbox("Assessment", ids,
+            index=ids.index(st.session_state.web_assessment_id) if st.session_state.get("web_assessment_id") in ids else 0,
+            format_func=lambda value: next(j["target"] + " — " + j["state"] + " — " + value[:8] for j in jobs if j["id"] == value))
+        if st.button("Refresh progress"):
+            st.rerun()
+        detail_response = api_session.get(f"{API_BASE}/web-assessments/{chosen}", timeout=5)
+        detail_response.raise_for_status()
+        job = detail_response.json()
+        st.write("State:", job["state"], " | HTTP requests:", job["requests_used"], " | AI:", job["ai_status"])
+        st.write("Finished tasks:", len(job["finished_tasks"]), " | Remaining:", len(job["pending"]))
+        if job["state"] in {"queued", "running", "paused"}:
+            if st.button("Cancel assessment"):
+                api_session.post(f"{API_BASE}/web-assessments/{chosen}/cancel", timeout=5).raise_for_status()
+                st.rerun()
+        if job["state"] == "paused" and st.button("Resume remaining checks"):
+            api_session.post(f"{API_BASE}/web-assessments/{chosen}/resume", timeout=5).raise_for_status()
+            st.rerun()
+        if job["state"] in {"completed", "partial", "cancelled"} and st.button("Retest with the same scope and fixtures"):
+            retest = api_session.post(f"{API_BASE}/web-assessments/{chosen}/retest", timeout=10)
+            retest.raise_for_status()
+            st.session_state.web_assessment_id = retest.json()["id"]
+            st.rerun()
+        report = api_session.get(f"{API_BASE}/web-assessments/{chosen}/report", timeout=10)
+        report.raise_for_status()
+        st.download_button("Download report", report.text, file_name=f"mt-web-{chosen}.md", mime="text/markdown")
+        st.markdown(report.text)
+    except Exception:
+        st.error("Could not load assessment progress. Check the backend and refresh.")
 
 
 def show_dashboard():
@@ -3744,3 +3830,4 @@ def show_settings():
 
 if __name__ == "__main__":
     main()
+
