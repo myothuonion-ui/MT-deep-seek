@@ -35,6 +35,8 @@ jobs:
         run: python -m compileall -q adapters ai core main.py frontend.py scripts benchmarks
       - name: Regression suite
         run: python tests/run_tests.py
+      - name: Local Web assessment integration
+        run: python -m unittest tests.test_web_assessment -v
       - name: Pytest
         run: python -m pytest -q
       - name: Ruff correctness checks
@@ -101,3 +103,4 @@ jobs:
             container-smoke.log
             nmap-smoke.txt
           if-no-files-found: ignore
+

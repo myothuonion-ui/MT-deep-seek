@@ -13,10 +13,14 @@ def _observation(kind, outcome="supports", run_id="run-1"):
         "kind": kind,
         "outcome": outcome,
         "run_id": run_id,
-        "source": "fixture",
+        "source": "fixture-secondary" if kind == "independent_confirmation" else "fixture",
         "summary": "bounded fixture evidence",
         "evidence_refs": ["artifact://fixture"],
     }
+
+
+def _trusted_fixture(observation):
+    return observation["source"] in {"fixture", "fixture-secondary"} and observation["evidence_refs"] == ["artifact://fixture"]
 
 
 def _must_raise(error_type, callback):
@@ -43,6 +47,7 @@ def test_proof_verifier_fails_closed_when_controls_are_missing():
         {"finding_id": "F-2", "severity": "high", "name": "Fixture"},
         [_observation("reproduction")],
         authorization_confirmed=True,
+        evidence_validator=_trusted_fixture,
     )
     assert bundle["status"] == "reproduced"
     assert "supporting negative control" in bundle["missing_requirements"]
@@ -64,6 +69,7 @@ def test_proof_verifier_confirms_low_risk_with_reproduction_and_control():
             "expected": "controlled fixture response",
         }],
         authorization_confirmed=True,
+        evidence_validator=_trusted_fixture,
     )
     assert bundle["status"] == "confirmed"
     assert bundle["replay_plan"][0]["argv"][1] == "[REDACTED]"
@@ -82,6 +88,7 @@ def test_proof_verifier_requires_independent_high_risk_confirmation():
         {"finding_id": "F-4", "severity": "critical"},
         observations,
         authorization_confirmed=True,
+        evidence_validator=_trusted_fixture,
     )
     assert bundle["status"] == "confirmed"
     assert bundle["confidence"] >= 0.98
@@ -96,6 +103,7 @@ def test_proof_verifier_refutation_overrides_support():
             _observation("refutation", outcome="refutes", run_id="run-2"),
         ],
         authorization_confirmed=True,
+        evidence_validator=_trusted_fixture,
     )
     assert bundle["status"] == "rejected"
     assert bundle["confidence"] < 0.1
@@ -194,11 +202,13 @@ def test_proof_metrics_compute_precision_recall_and_evidence_coverage():
         [_observation("reproduction"), _observation("negative_control")],
         [{"adapter": "http", "action": "replay", "argv": []}],
         authorization_confirmed=True,
+        evidence_validator=_trusted_fixture,
     )
     rejected = evaluate_finding(
         {"finding_id": "safe", "severity": "low"},
         [_observation("refutation", outcome="refutes")],
         authorization_confirmed=True,
+        evidence_validator=_trusted_fixture,
     )
     metrics = summarize_proof_bundles(
         [confirmed, rejected],
@@ -209,4 +219,5 @@ def test_proof_metrics_compute_precision_recall_and_evidence_coverage():
     assert metrics["ground_truth"]["precision"] == 1.0
     assert metrics["ground_truth"]["recall"] == 1.0
     assert json.dumps(metrics)
+
 

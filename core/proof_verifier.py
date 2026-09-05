@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 from datetime import datetime, timezone
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 
 _ALLOWED_KINDS = {
@@ -148,12 +148,15 @@ def evaluate_finding(
     authorization_confirmed: bool,
     require_negative_control: bool = True,
     require_independent_confirmation: Optional[bool] = None,
+    evidence_validator: Optional[Callable[[Mapping[str, Any]], bool]] = None,
 ) -> dict[str, Any]:
     """Evaluate observations and return a hashed, redacted proof bundle.
 
-    A high/critical finding requires independent confirmation unless the caller
-    explicitly chooses a stricter policy. Authorization is mandatory even
-    though this function performs no network or subprocess activity.
+    A high/critical finding always requires independent confirmation. An
+    internal executor must supply evidence_validator to resolve and authenticate
+    artifacts bound to each observation. API-submitted labels alone are never
+    proof. Authorization is mandatory even though this function performs no
+    network or subprocess activity.
     """
     if not authorization_confirmed:
         raise ProofPolicyError("explicit authorization confirmation is required")
@@ -174,28 +177,43 @@ def evaluate_finding(
     ]
 
     severity = _bounded_text(finding.get("severity") or finding.get("risk_level"), 30).lower()
-    if require_independent_confirmation is None:
-        require_independent_confirmation = severity in {"high", "critical"}
+    # A caller can strengthen policy but cannot disable the high/critical floor.
+    require_independent_confirmation = (
+        severity in {"high", "critical"} or bool(require_independent_confirmation)
+    )
+    trusted = []
+    for item in normalized:
+        try:
+            valid = bool(item["evidence_refs"] and evidence_validator and evidence_validator(item))
+        except Exception:
+            valid = False
+        if valid:
+            trusted.append(item)
 
     supports_reproduction = {
-        item["run_id"] for item in normalized
+        item["run_id"] for item in trusted
         if item["kind"] == "reproduction" and item["outcome"] == "supports"
     }
     supports_control = any(
         item["kind"] == "negative_control" and item["outcome"] == "supports"
-        for item in normalized
+        for item in trusted
     )
     supports_independent = any(
         item["kind"] == "independent_confirmation" and item["outcome"] == "supports"
-        for item in normalized
+        and bool(item["source"])
+        and all(item["run_id"] != other["run_id"] and item["source"] != other["source"]
+                for other in trusted if other["kind"] == "reproduction")
+        for item in trusted
     )
     refuted = any(
         item["outcome"] == "refutes"
         and item["kind"] in {"reproduction", "independent_confirmation", "refutation"}
-        for item in normalized
+        for item in trusted
     )
 
     missing: list[str] = []
+    if len(trusted) != len(normalized) or not trusted:
+        missing.append("trusted executor evidence")
     if not supports_reproduction:
         missing.append("supporting reproduction")
     if require_negative_control and not supports_control:
@@ -229,6 +247,8 @@ def evaluate_finding(
         "finding": finding_copy,
         "status": status,
         "confidence": confidence,
+        "confidence_kind": "policy-score-not-calibrated-probability",
+        "trusted_observation_count": len(trusted),
         "policy": {
             "authorization_confirmed": True,
             "require_negative_control": require_negative_control,
@@ -251,4 +271,5 @@ def evaluate_finding(
     body["bundle_id"] = f"proof-{digest[:16]}"
     body["content_sha256"] = digest
     return body
+
 

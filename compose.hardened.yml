@@ -30,6 +30,9 @@ services:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
       LITELLM_API_BASE: ${LITELLM_API_BASE:-http://host.docker.internal:4000/v1}
       LITELLM_MODEL: ${LITELLM_MODEL:-planner-strong}
+      WEB_EVIDENCE_SIGNING_KEY: ${WEB_EVIDENCE_SIGNING_KEY:-}
+      MT_WEB_ACCOUNT_OWNER: ${MT_WEB_ACCOUNT_OWNER:-}
+      MT_WEB_ACCOUNT_OTHER: ${MT_WEB_ACCOUNT_OTHER:-}
       AGENT_GRAPH_SIGNING_KEY: ${AGENT_GRAPH_SIGNING_KEY:-}
       MODEL_ROUTING_ENABLED: ${MODEL_ROUTING_ENABLED:-false}
       MODEL_ROUTING_AUTO_SELECT: ${MODEL_ROUTING_AUTO_SELECT:-false}
@@ -69,3 +72,4 @@ services:
 volumes:
   mt-pentester-data:
     name: ${MT_DATA_VOLUME:-mt-pentester-data}
+

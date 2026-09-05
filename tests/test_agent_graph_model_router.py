@@ -288,6 +288,34 @@ def test_agent_graph_and_model_route_apis_are_authenticated():
         assert status.status_code == 200
         assert status.json()["credentials_exposed"] is False
 
+        # Exercise the new router through the actual application's auth boundary.
+        assert client.get("/api/web-assessments").status_code == 401
+        web = client.post("/api/web-assessments", headers=headers, json={
+            "target": "https://app.example.test/", "authorization_confirmed": True,
+        })
+        assert web.status_code == 202
+        web_id = web.json()["id"]
+        assert web.json()["state"] == "queued"
+        assert client.get(f"/api/web-assessments/{web_id}", headers=headers).status_code == 200
+        assert client.get(f"/api/web-assessments/{web_id}/report", headers=headers).headers["content-type"].startswith("text/markdown")
+        assert client.post(f"/api/web-assessments/{web_id}/retest", headers=headers).status_code == 409
+        assert client.post(f"/api/web-assessments/{web_id}/cancel", headers=headers).json()["state"] == "cancelled"
+        assert client.post(f"/api/web-assessments/{web_id}/resume", headers=headers).status_code == 400
+        assert client.post(f"/api/web-assessments/{web_id}/retest", headers=headers).status_code == 202
+        assert client.post("/api/web-assessments", headers=headers, json={
+            "target": "https://outside.invalid/", "authorization_confirmed": True,
+        }).status_code == 400
+        untrusted = client.post("/api/verification/evaluate", headers=headers, json={
+            "authorization_confirmed": True,
+            "finding": {"severity": "critical"},
+            "observations": [{"kind": kind, "outcome": "supports", "evidence_refs": ["invented"]}
+                             for kind in ("reproduction", "negative_control", "independent_confirmation")],
+            "require_independent_confirmation": False,
+        })
+        assert untrusted.status_code == 200
+        assert untrusted.json()["status"] == "candidate"
+        assert untrusted.json()["policy"]["require_independent_confirmation"] is True
+
         planned = client.post(
             "/api/agent-graphs/plan",
             headers=headers,
@@ -335,3 +363,4 @@ def test_agent_graph_and_model_route_apis_are_authenticated():
             else:
                 os.environ[key] = value
         shutil.rmtree(root)
+

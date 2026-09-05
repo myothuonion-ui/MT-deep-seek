@@ -38,6 +38,8 @@ from core.plugin_registry import PluginRegistry
 from core.orchestrator import Orchestrator
 from core.scanner import Scanner
 from core.storage import migrate_runtime_files
+from core.web_assessment import WebAssessments
+from core.web_api import assessment_router
 from core.api_contracts import ContractPolicyError, plan_contract
 from core.agent_graph import (
     AgentGraphPolicyError,
@@ -162,6 +164,30 @@ _evidence_graph_path = Path(
 evidence_graph = EvidenceGraph(_evidence_graph_path)
 orchestrator = Orchestrator(ai_connector, scanner)
 plugin_registry = PluginRegistry()
+web_assessments = WebAssessments(
+    _configured_db_path.with_name("mt_web_assessments.db"),
+    os.getenv("WEB_EVIDENCE_SIGNING_KEY", "").strip() or API_AUTH_TOKEN,
+    lambda: os.getenv("SCOPE_ALLOWLIST", ""),
+    ai=ai_connector,
+)
+app.include_router(assessment_router(web_assessments))
+
+
+@app.on_event("startup")
+async def _start_web_assessments():
+    app.state.web_assessment_worker = asyncio.create_task(web_assessments.worker())
+
+
+@app.on_event("shutdown")
+async def _stop_web_assessments():
+    task = getattr(app.state, "web_assessment_worker", None)
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
 
 # WebSocket connections
 active_connections: List[WebSocket] = []
@@ -1857,3 +1883,4 @@ def start_operation():
 
 if __name__ == "__main__":
     start_operation()
+
