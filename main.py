@@ -169,6 +169,7 @@ web_assessments = WebAssessments(
     os.getenv("WEB_EVIDENCE_SIGNING_KEY", "").strip() or API_AUTH_TOKEN,
     lambda: os.getenv("SCOPE_ALLOWLIST", ""),
     ai=ai_connector,
+    evidence_graph=evidence_graph,
 )
 app.include_router(assessment_router(web_assessments))
 
@@ -1883,4 +1884,3 @@ def start_operation():
 
 if __name__ == "__main__":
     start_operation()
-

@@ -248,6 +248,20 @@ class EvidenceGraph:
             "updated_at": row["updated_at"],
         }
 
+    def clear_web_projection(self, job_id: str) -> None:
+        """Remove only one assessment's derived cache before rebuilding it.
+
+        This cache is not authoritative evidence; failed projections can be
+        retried from the signed assessment store without executing tools.
+        """
+        if not re.fullmatch(r"[a-f0-9]{32}", job_id):
+            raise EvidenceGraphError("Invalid Web assessment ID")
+        prefix = "web:" + job_id + ":"
+        with self._connect() as db:
+            db.execute("DELETE FROM evidence_edges WHERE source_id IN (SELECT node_id FROM evidence_nodes WHERE substr(node_key,1,?)=?) OR target_id IN (SELECT node_id FROM evidence_nodes WHERE substr(node_key,1,?)=?)",
+                       (len(prefix), prefix, len(prefix), prefix))
+            db.execute("DELETE FROM evidence_nodes WHERE substr(node_key,1,?)=?", (len(prefix), prefix))
+
     def stats(self) -> dict[str, Any]:
         with self._connect() as db:
             nodes = {

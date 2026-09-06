@@ -1,3 +1,15 @@
+## Unreleased — native tool/evidence workflow
+
+- Route Web GET execution through typed requests and persist signed call records
+  linked to artifacts, findings and source-route associations.
+- Add opt-in source GET mapping within existing scope and page/request budgets.
+- Use shared evidence validation for report/API/JSON export; downgrade findings
+  with broken execution links and prevent legacy-validation downgrade attacks.
+- Project verified records into EvidenceGraph with idempotent retry and remove
+  stale support edges when evidence is withdrawn. Add UI execution history/export.
+- Validate with 30 local fixture/trust tests; external scanner integration and
+  general exploit discovery remain outside the native GET profile.
+
 ## [3.0.0-alpha.7] — 2026-09-05
 
 - Add an executable, persistent Web assessment profile with same-origin GET
@@ -529,4 +541,3 @@ New env: `COVERAGE_ENGINE`, `BRUTEFORCE_ENABLED`, `BRUTEFORCE_TIER`,
 - Manual approval workflow for HIGH-risk commands.
 - OSINT phase with Google Dorks.
 - `start.sh` with automatic port conflict resolution and venv management.
-

@@ -24,6 +24,7 @@ from adapters.base import AdapterPolicyError
 from adapters.scoped_http import ScopedHTTP, WebScope
 from core.code_intelligence import analyze_source_bundle
 from core.proof_verifier import evaluate_finding
+from core.tool_workflow import HTTPToolRequest, NativeToolRouter, authentic, seal, project_graph
 
 
 class AssessmentError(ValueError):
@@ -55,7 +56,7 @@ def validate_spec(raw, allowlist):
         raise AssessmentError("Invalid or oversized assessment input")
     if raw.get("authorization_confirmed") is not True:
         raise AssessmentError("Explicit testing authorization is required")
-    supported = {"target", "authorization_confirmed", "allowed_paths", "excluded_paths", "max_requests", "max_seconds", "max_pages", "ai_planning", "accounts", "authorization_checks", "source_files"}
+    supported = {"target", "authorization_confirmed", "allowed_paths", "excluded_paths", "max_requests", "max_seconds", "max_pages", "ai_planning", "accounts", "authorization_checks", "source_files", "map_source_routes"}
     if set(raw) - supported:
         raise AssessmentError("Unsupported assessment field")
     def prefixes(name, default):
@@ -74,6 +75,9 @@ def validate_spec(raw, allowlist):
     if type(raw.get("ai_planning", False)) is not bool:
         raise AssessmentError("ai_planning must be boolean")
     spec["ai_planning"] = raw.get("ai_planning", False)
+    if type(raw.get("map_source_routes", False)) is not bool:
+        raise AssessmentError("map_source_routes must be boolean")
+    spec["map_source_routes"] = raw.get("map_source_routes", False)
     accounts = raw.get("accounts", {})
     if not isinstance(accounts, dict) or len(accounts) > 5:
         raise AssessmentError("At most five test account references are supported")
@@ -109,7 +113,7 @@ def validate_spec(raw, allowlist):
 
 
 class WebAssessments:
-    def __init__(self, db_path, signing_key, allowlist_getter, ai=None, transport_factory=ScopedHTTP):
+    def __init__(self, db_path, signing_key, allowlist_getter, ai=None, transport_factory=ScopedHTTP, evidence_graph=None):
         if not signing_key or len(signing_key) < 16:
             raise AssessmentError("Assessment evidence signing key is required")
         self.path = Path(db_path)
@@ -118,6 +122,8 @@ class WebAssessments:
         self.allowlist_getter = allowlist_getter
         self.ai = ai
         self.transport_factory = transport_factory
+        self.tool_router = NativeToolRouter()
+        self.evidence_graph = evidence_graph
         self.owner = uuid.uuid4().hex
         with self.connect() as db:
             db.execute("CREATE TABLE IF NOT EXISTS web_jobs (id TEXT PRIMARY KEY, state TEXT NOT NULL, lease REAL NOT NULL DEFAULT 0, owner TEXT, cancel INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL)")
@@ -138,10 +144,31 @@ class WebAssessments:
         job_id = uuid.uuid4().hex
         tasks = [{"id": "map-0", "kind": "map", "url": spec["target"]}]
         tasks += [{"id": f"auth-{i}", "kind": "authorization", "check": check} for i, check in enumerate(spec["authorization_checks"])]
+        seen, gaps = [spec["target"]], []
+        source_routes = {}
+        if spec["source_analysis"]:
+            scope = WebScope(spec["target"], self.allowlist_getter(), tuple(spec["allowed_paths"]), tuple(spec["excluded_paths"]))
+            for route in spec["source_analysis"]["routes"]:
+                path = route["path"]
+                # Never substitute identifiers, infer verbs or probe parameterized routes.
+                if route["method"] != "GET" or not path.startswith("/") or path.startswith("//") or re.search(r"[{}<>:*?]", path):
+                    continue
+                try:
+                    url = scope.check(urljoin(spec["target"], path))
+                except (AdapterPolicyError, ValueError):
+                    continue
+                source_routes.setdefault(url, []).append(route)
+                if spec["map_source_routes"] and url not in seen:
+                    if len(seen) >= spec["max_pages"]:
+                        gaps.append("Source route mapping limited by page budget")
+                        continue
+                    seen.append(url)
+                    tasks.append({"id": f"source-{len(seen)}", "kind": "map", "url": url})
         body = {"id": job_id, "spec": spec, "created_at": time.time(), "started_at": None,
                 "requests_used": 0, "ai_calls": 0, "ai_status": "disabled" if not spec["ai_planning"] else "pending",
                 "pending": tasks, "finished_tasks": [], "in_flight": None,
-                "seen": [spec["target"]], "artifacts": [], "findings": [], "coverage_gaps": [], "events": []}
+                "seen": seen, "artifacts": [], "findings": [], "coverage_gaps": list(dict.fromkeys(gaps)), "events": [],
+                "workflow_version": 1, "tool_calls": [], "source_routes": source_routes}
         with self.connect() as db:
             db.execute("INSERT INTO web_jobs(id,state,body) VALUES(?, 'queued', ?)", (job_id, canonical(body)))
         return self.get(job_id)
@@ -235,7 +262,7 @@ class WebAssessments:
             return {"Authorization": "Bearer " + value}
         return {"Cookie": value}
 
-    def _artifact(self, body, response, actor, marker):
+    def _artifact(self, body, response, actor, marker, call_id=None):
         # Raw response bodies, cookies and arbitrary headers never enter storage.
         artifact = {
             "id": uuid.uuid4().hex, "job_id": body["id"], "task_id": body["in_flight"]["id"],
@@ -244,6 +271,8 @@ class WebAssessments:
             "marker_present": bool(marker and marker.encode() in response["body"]),
             "marker_sha256": hashlib.sha256(marker.encode()).hexdigest() if marker else None,
             "header_names": sorted(response["headers"].keys()), "timestamp": time.time(),
+            "tool_call_id": call_id, "tool": "mt-scoped-http", "method": "GET",
+            "source_refs": body.get("source_routes", {}).get(response["url"], []),
         }
         artifact["signature"] = hmac.new(self.key, canonical(artifact).encode(), hashlib.sha256).hexdigest()
         body["artifacts"].append(artifact)
@@ -258,13 +287,13 @@ class WebAssessments:
         clean = dict(finding)
         signature = clean.pop("signature", "")
         expected = hmac.new(self.key, canonical(clean).encode(), hashlib.sha256).hexdigest()
-        return hmac.compare_digest(signature, expected)
+        return isinstance(signature, str) and hmac.compare_digest(signature, expected)
 
     def verify_artifact(self, artifact, job_id):
         clean = dict(artifact)
         signature = clean.pop("signature", "")
         expected = hmac.new(self.key, canonical(clean).encode(), hashlib.sha256).hexdigest()
-        return clean.get("job_id") == job_id and hmac.compare_digest(signature, expected)
+        return clean.get("job_id") == job_id and isinstance(signature, str) and hmac.compare_digest(signature, expected)
 
     async def _request(self, body, url, actor="anonymous", marker=""):
         self._check_budget(body)
@@ -275,10 +304,27 @@ class WebAssessments:
         credentials = self._credentials(spec, actor)
         remaining = max(1, min(10, int(spec["max_seconds"] - (time.time() - body["started_at"]))))
         transport = self.transport_factory(scope, timeout=remaining)
+        request = HTTPToolRequest(body["id"], body["in_flight"]["id"], url, actor)
+        call = request.record()
+        calls = body.setdefault("tool_calls", [])
+        calls.append(seal(call, self.key))
+        call_index = len(calls) - 1
         body["requests_used"] += 1
         self._save(body)  # reserve BEFORE dispatch; interrupted requests still count
-        response = await asyncio.to_thread(transport.get, url, credentials)
-        artifact = self._artifact(body, response, actor, marker)
+        try:
+            response = await asyncio.to_thread(self.tool_router.execute, request, transport, credentials)
+            artifact = self._artifact(body, response, actor, marker, call["id"])
+        except asyncio.CancelledError:
+            # Keep the pre-dispatch record as running/unknown; no automatic replay.
+            raise
+        except Exception as exc:
+            call.update(state="failed", finished_at=time.time(), error_type=type(exc).__name__)
+            calls[call_index] = seal(call, self.key)
+            self._save(body)
+            raise
+        call.update(state="completed", finished_at=time.time(), evidence_refs=[artifact["id"]], http_status=response["status"])
+        calls[call_index] = seal(call, self.key)
+        self._save(body)
         if response["status"] == 429 or response["status"] >= 500:
             raise HaltAssessment("Target returned throttling/server errors; assessment stopped")
         return response, artifact
@@ -295,7 +341,7 @@ class WebAssessments:
                 ("x-content-type-options", "Set X-Content-Type-Options: nosniff on applicable responses."),
             ]:
                 if header not in headers:
-                    body["findings"].append(self._seal_finding({"id": uuid.uuid4().hex, "title": "Review missing " + header,
+                    body["findings"].append(self._seal_finding({"id": uuid.uuid4().hex, "job_id": body["id"], "task_id": task["id"], "title": "Review missing " + header,
                         "url": task["url"], "severity": "info", "status": "candidate",
                         "impact": "Defense-in-depth observation; exploitability has not been established.",
                         "remediation": remediation, "evidence_refs": [artifact["id"]], "reproduction": ["GET the affected page and inspect response headers."]}))
@@ -349,7 +395,7 @@ class WebAssessments:
                     ref in by_id and self.verify_artifact(by_id[ref], body["id"])
                     for ref in observation["evidence_refs"]),
             )
-            body["findings"].append(self._seal_finding({"id": uuid.uuid4().hex, "title": "Cross-account access to a controlled fixture",
+            body["findings"].append(self._seal_finding({"id": uuid.uuid4().hex, "job_id": body["id"], "task_id": task["id"], "title": "Cross-account access to a controlled fixture",
                 "url": check["url"], "severity": "medium", "status": proof["status"], "proof_bundle": proof,
                 "impact": "A second authorized test account read the owner-only fixture marker. Severity requires business-impact review.",
                 "remediation": "Enforce object ownership and tenant authorization on every request; add a cross-account regression test.",
@@ -441,7 +487,47 @@ class WebAssessments:
             state = "cancelled"
         body["completed_at"] = time.time()
         self._save(body, state)
+        self.sync_evidence(body["id"])
         return True
+
+    def evidence_bundle(self, job_id):
+        """One validation boundary for UI, JSON export, reports and graph projection."""
+        body = self.get(job_id)
+        calls = [{**c, "integrity_valid": authentic(c, self.key, job_id)} for c in body.get("tool_calls", [])]
+        call_index = {c["id"]: c for c in calls if c["integrity_valid"]}
+        artifacts = []
+        for artifact in body["artifacts"]:
+            valid = self.verify_artifact(artifact, job_id)
+            if body.get("workflow_version") or artifact.get("tool_call_id"):
+                call = call_index.get(artifact.get("tool_call_id"), {})
+                valid = valid and call.get("state") == "completed" and artifact["id"] in call.get("evidence_refs", []) and all(
+                    call.get(key) == artifact.get(key) for key in ("task_id", "url", "actor", "tool", "method"))
+            artifacts.append({**artifact, "integrity_valid": bool(valid)})
+        valid_artifacts = {a["id"]: a for a in artifacts if a["integrity_valid"]}
+        findings = []
+        for finding in body["findings"]:
+            valid = self._finding_valid(finding) and bool(finding.get("evidence_refs")) and all(ref in valid_artifacts for ref in finding["evidence_refs"])
+            if body.get("workflow_version") or finding.get("job_id"):
+                valid = valid and finding.get("job_id") == job_id and all(
+                    valid_artifacts[ref]["task_id"] == finding.get("task_id") and valid_artifacts[ref]["url"] == finding.get("url")
+                    for ref in finding["evidence_refs"] if ref in valid_artifacts)
+            findings.append({**finding, "status": finding["status"] if valid else "candidate",
+                             "integrity_valid": bool(valid)})
+        return {"schema": 1, "job_id": job_id, "target": body["spec"]["target"], "state": body["state"],
+                "tool_calls": calls, "artifacts": artifacts, "findings": findings,
+                "coverage_gaps": body["coverage_gaps"], "requests_used": body["requests_used"],
+                "pending_tasks": len(body["pending"]),
+                "verification": "Server-verified HMAC provenance, not independent proof of business impact"}
+
+    def sync_evidence(self, job_id):
+        if self.evidence_graph is None:
+            return {"state": "not-configured"}
+        try:
+            return project_graph(self.evidence_graph, self.evidence_bundle(job_id))
+        except Exception:
+            # Projection failure must not discard authoritative execution evidence.
+            # The API provides an idempotent retry without re-running any tool.
+            return {"state": "failed", "retryable": True}
 
     async def worker(self):
         while True:
@@ -461,7 +547,8 @@ class WebAssessments:
         def safe(value):
             text = str(value).replace("<", "&lt;").replace(">", "&gt;")
             return re.sub(r"([\\`*_{}\[\]()#!|])", r"\\\1", text).replace("\n", " ")
-        artifacts = {a["id"]: a for a in body["artifacts"] if self.verify_artifact(a, job_id)}
+        bundle = self.evidence_bundle(job_id)
+        artifacts = {a["id"]: a for a in bundle["artifacts"] if a["integrity_valid"]}
         lines = ["# MT Web Assessment", "", "Target: " + safe(body["spec"]["target"]),
                  "State: " + safe(body["state"]), "Requests used: " + str(body["requests_used"]),
                  "AI planner: " + safe(body["ai_status"]), "", "## Scope and coverage", "",
@@ -472,11 +559,17 @@ class WebAssessments:
                  "Form login, JavaScript execution, mutation testing and general exploit discovery are not covered by this profile.", ""]
         if body["spec"]["source_analysis"]:
             lines += ["Source map: " + safe(body["spec"]["source_analysis"]["summary"]), "Static candidates require separate runtime validation.", ""]
-        lines += ["## Findings", ""]
+        lines += ["## Tool execution", "", "Each entry records a scoped GET attempt; completion does not confirm a vulnerability.", ""]
+        for call in bundle["tool_calls"]:
+            state = call["state"] if call["integrity_valid"] else "invalid evidence"
+            if state == "running":
+                state = "in flight / outcome unknown"
+            lines.append("- " + safe(f"{call['id']} | {call['task_id']} | {call['tool']} | {state} | {call['url']}"))
+        lines += ["", "## Findings", ""]
         if not body["findings"]:
             lines += ["No findings were established by the completed checks.", ""]
-        for finding in body["findings"]:
-            valid = self._finding_valid(finding) and bool(finding["evidence_refs"]) and all(ref in artifacts for ref in finding["evidence_refs"])
+        for finding in bundle["findings"]:
+            valid = finding["integrity_valid"]
             status = finding["status"] if valid else "candidate — evidence integrity check failed"
             lines += ["### " + safe(finding["title"]), "", "Status: " + safe(status),
                       "Severity: " + safe(finding["severity"]), "URL: " + safe(finding["url"]),
@@ -486,6 +579,8 @@ class WebAssessments:
             for ref in finding["evidence_refs"]:
                 a = artifacts.get(ref)
                 lines.append("- " + (safe(f"{ref}: actor={a['actor']}; HTTP={a['status']}; body_sha256={a['body_sha256']}; marker={a['marker_present']}") if a else "Unavailable or invalid artifact"))
+                if a:
+                    lines += ["  - Source association (not proof of causality): " + safe(f"{r['file']}:{r['line']} {r['method']} {r['path']}") for r in a.get("source_refs", [])]
             lines.append("")
         lines += ["## Coverage gaps", ""]
         gaps = list(dict.fromkeys(body["coverage_gaps"]))
