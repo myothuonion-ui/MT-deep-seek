@@ -269,6 +269,87 @@ class WebAssessmentTests(unittest.TestCase):
                 self.service.create(self.spec())
 
 
+    def test_source_routes_execute_through_ledger_and_project_evidence(self):
+        from core.evidence_graph import EvidenceGraph
+        graph = EvidenceGraph(Path(self.tmp.name) / "graph.db")
+        self.service = self.make_service(evidence_graph=graph)
+        job = self.run_job(self.spec(map_source_routes=True, source_files={
+            "app.py": '@app.get("/public")\n@app.post("/mutation")\n@app.get("/api/{id}")\n@app.get("/logout")\n'
+        }))
+        self.assertEqual(LabHandler.calls, ["/", "/public"])
+        bundle = self.service.evidence_bundle(job["id"])
+        self.assertEqual(len(bundle["tool_calls"]), job["requests_used"])
+        self.assertTrue(all(c["integrity_valid"] for c in bundle["tool_calls"]))
+        artifact = next(a for a in bundle["artifacts"] if a["url"].endswith("/public"))
+        self.assertTrue(artifact["integrity_valid"])
+        self.assertEqual(artifact["source_refs"][0]["file"], "app.py")
+        self.assertIn("Source association", self.service.report(job["id"]))
+        before = graph.stats()
+        self.assertEqual(self.service.sync_evidence(job["id"])["state"], "synced")
+        self.assertEqual(before, graph.stats())
+        with graph._connect() as db:
+            relations = {row[0] for row in db.execute("SELECT relation FROM evidence_edges")}
+        self.assertTrue({"declares", "derived_from", "supports"} <= relations)
+
+    def test_source_execution_is_opt_in_and_page_bounded(self):
+        source = {"app.py": '@app.get("/public")\n@app.get("/second")'}
+        job = self.run_job(self.spec(source_files=source))
+        self.assertEqual(job["requests_used"], 1)
+        job = self.run_job(self.spec(source_files=source, map_source_routes=True, max_pages=1))
+        self.assertEqual(job["requests_used"], 1)
+        self.assertTrue(any("page budget" in gap for gap in job["coverage_gaps"]))
+
+    def test_changed_tool_record_downgrades_dependent_confirmed_finding(self):
+        from core.evidence_graph import EvidenceGraph
+        graph = EvidenceGraph(Path(self.tmp.name) / "graph.db")
+        self.service = self.make_service(evidence_graph=graph)
+        job = self.run_job(self.spec(authorization_path="/api/vulnerable"))
+        job["tool_calls"][1]["url"] = self.url + "/forged"
+        job.pop("workflow_version")  # cannot downgrade signed evidence to legacy validation
+        with self.service.connect() as db:
+            db.execute("UPDATE web_jobs SET body=? WHERE id=?", (canonical(job), job["id"]))
+        bundle = self.service.evidence_bundle(job["id"])
+        finding = next(f for f in bundle["findings"] if "Cross-account" in f["title"])
+        self.assertFalse(finding["integrity_valid"])
+        self.assertEqual(finding["status"], "candidate")
+        self.assertIn("evidence integrity check failed", self.service.report(job["id"]))
+        self.assertEqual(self.service.sync_evidence(job["id"])["state"], "synced")
+        with graph._connect() as db:
+            stale = db.execute("SELECT count(*) FROM evidence_edges e JOIN evidence_nodes n ON n.node_id=e.target_id WHERE e.relation='supports' AND n.node_key=?",
+                               ("web:" + job["id"] + ":" + finding["id"],)).fetchone()[0]
+        self.assertEqual(stale, 0)
+
+    def test_transport_error_is_redacted_and_reserved_in_ledger(self):
+        class BrokenTransport:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def get(self, *args):
+                raise OSError("secret-password-and-response-body")
+        self.service = self.make_service(transport_factory=BrokenTransport)
+        job = self.run_job(self.spec())
+        bundle = self.service.evidence_bundle(job["id"])
+        self.assertEqual(bundle["requests_used"], 1)
+        self.assertEqual(bundle["tool_calls"][0]["state"], "failed")
+        self.assertEqual(bundle["tool_calls"][0]["error_type"], "OSError")
+        self.assertNotIn("secret-password", canonical(bundle))
+        self.assertEqual(bundle["state"], "partial")
+
+    def test_graph_failure_preserves_results_and_can_retry_without_requests(self):
+        from core.evidence_graph import EvidenceGraph
+        class BrokenGraph:
+            def add_node(self, *args):
+                raise OSError("unavailable")
+        self.service = self.make_service(evidence_graph=BrokenGraph())
+        job = self.run_job(self.spec())
+        calls = list(LabHandler.calls)
+        self.assertEqual(self.service.sync_evidence(job["id"])["state"], "failed")
+        self.service.evidence_graph = EvidenceGraph(Path(self.tmp.name) / "recovered.db")
+        self.assertEqual(self.service.sync_evidence(job["id"])["state"], "synced")
+        self.assertEqual(LabHandler.calls, calls)
+        self.assertTrue(self.service.evidence_bundle(job["id"])["artifacts"])
+
+
 class ProofTrustTests(unittest.TestCase):
     def observations(self):
         return [{"kind": kind, "outcome": "supports", "source": source, "run_id": str(i), "evidence_refs": [str(i)]}

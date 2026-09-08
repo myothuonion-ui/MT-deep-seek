@@ -154,7 +154,7 @@ static source mapping, progress, cancellation, crash recovery and reporting.
 
 Remaining: browser form-login/SPA exploration, authenticated browser-session
 lifecycle, OpenAPI/GraphQL intent execution, broader vulnerability-specific
-validators, source-to-runtime correlation, cost telemetry, richer agent planning
+validators, data-flow-based source-to-runtime proof, cost telemetry, richer agent planning
 and independent benchmark comparison. The legacy optional browser adapter is
 still available separately and does not run as part of this profile.
 
@@ -174,3 +174,43 @@ plan injection. Existing proof/contract regression tests also exercise trusted
 fixture validation. Full dependency, API/UI and hardened-container CI gates must
 still run in the repository's configured environment; local fixture success is
 not a general pentesting benchmark score.
+
+## Native tool and evidence workflow
+
+The Web worker now routes every HTTP request through `HTTPToolRequest` and
+`NativeToolRouter` in `core/tool_workflow.py`. Before dispatch it reserves the
+request budget and persists a signed tool-call record. Success links that call
+to signed response artifacts; failure records only the exception type, never
+credentials or server text. Interrupted requests remain outcome-unknown and
+are not automatically replayed.
+
+Optional `map_source_routes: true` seeds scoped, literal GET routes from supplied
+`source_files` into the existing page queue. It does not infer route parameters,
+follow external URLs, execute other methods or exceed the page/request budget.
+Exact source-route associations are attached to observations and reports; they
+do not prove that a static candidate caused a runtime vulnerability. Source
+mapping is a heuristic and application mount prefixes may need manual review.
+Retest retains existing fixture checks but does not retain/replay uploaded source;
+submit a new assessment with source files to repeat source-seeded mapping.
+
+`GET /api/web-assessments/{id}/evidence` returns a redacted JSON bundle containing
+tool calls, artifacts, findings, coverage gaps and server-computed integrity
+flags. The report, finding API and graph projection use the same validator.
+New findings require job/task/URL linkage to authentic completed calls and
+artifacts. A broken link downgrades the finding to candidate. Successful HTTP
+execution and HMAC authenticity do not establish business impact or independent
+reproduction. Existing jobs without a ledger retain their previous artifact
+validation semantics; they are not retroactively given execution provenance.
+
+On completion, verified evidence is projected into `EvidenceGraph` as source
+file → endpoint → artifact, tool call → artifact, and artifact → finding links.
+The assessment SQLite store remains authoritative. Projection replaces only
+that assessment's cache so withdrawn evidence cannot keep stale support edges.
+Projection is not an atomic multi-database transaction; readers may temporarily
+see a partial cache during rebuilding. `POST .../{id}/evidence/sync` retries an
+idempotent projection without any network test. The UI provides execution
+history, JSON download and graph sync status.
+
+Nuclei, BBOT and Playwright remain separate adapters. Their network activity is
+not accounted by the native GET request budget, so this workflow does not
+silently invoke them or treat scanner matches as controlled-fixture proof.

@@ -726,6 +726,8 @@ def show_web_assessment():
             st.caption("Each marker must identify a synthetic fixture owned only by the owner account. Check ownership_confirmed only after verifying the other account should not have access.")
         source_uploads = st.file_uploader("Source files for optional static mapping", accept_multiple_files=True,
             type=["py", "js", "jsx", "ts", "tsx", "java", "go", "php", "rb", "cs"])
+        map_source_routes = st.checkbox("Visit static GET routes found in the supplied source", value=False)
+        st.caption("Uses the same path scope and page/request budgets. Parameterized routes and other HTTP methods are skipped. Source associations are not vulnerability proof.")
         authorized = st.checkbox("I am authorized to test this website and these read-only paths and test accounts.")
         submitted = st.form_submit_button("Start assessment")
     if submitted:
@@ -738,7 +740,8 @@ def show_web_assessment():
                        "excluded_paths": [p.strip() for p in excluded.splitlines() if p.strip()],
                        "max_pages": int(max_pages), "max_requests": int(max_requests), "max_seconds": int(max_seconds),
                        "ai_planning": ai_planning, "authorization_confirmed": authorized,
-                       "accounts": accounts, "authorization_checks": checks, "source_files": source_files}
+                       "accounts": accounts, "authorization_checks": checks, "source_files": source_files,
+                       "map_source_routes": map_source_routes}
             response = api_session.post(f"{API_BASE}/web-assessments", json=payload, timeout=15)
             if response.status_code == 202:
                 st.session_state.web_assessment_id = response.json()["id"]
@@ -780,6 +783,19 @@ def show_web_assessment():
             st.rerun()
         report = api_session.get(f"{API_BASE}/web-assessments/{chosen}/report", timeout=10)
         report.raise_for_status()
+        evidence_response = api_session.get(f"{API_BASE}/web-assessments/{chosen}/evidence", timeout=10)
+        evidence_response.raise_for_status()
+        evidence = evidence_response.json()
+        with st.expander("Tool execution and evidence"):
+            st.dataframe([{k: c.get(k) for k in ("task_id", "tool", "url", "state", "http_status", "integrity_valid")}
+                          for c in evidence["tool_calls"]], use_container_width=True)
+            st.caption("A completed request is not a confirmed vulnerability. Evidence integrity is verified by the backend.")
+            st.download_button("Download evidence JSON", json.dumps(evidence, indent=2),
+                               file_name=f"mt-web-{chosen}-evidence.json", mime="application/json")
+            if st.button("Sync evidence graph"):
+                sync = api_session.post(f"{API_BASE}/web-assessments/{chosen}/evidence/sync", timeout=15)
+                sync.raise_for_status()
+                st.write("Evidence graph:", sync.json()["state"])
         st.download_button("Download report", report.text, file_name=f"mt-web-{chosen}.md", mime="text/markdown")
         st.markdown(report.text)
     except Exception:
@@ -3830,4 +3846,3 @@ def show_settings():
 
 if __name__ == "__main__":
     main()
-

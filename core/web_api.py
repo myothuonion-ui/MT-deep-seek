@@ -37,7 +37,18 @@ def assessment_router(service):
 
     @router.get("/{job_id}")
     async def get_assessment(job_id: str):
-        return call(service.get, job_id)
+        result = call(service.get, job_id)
+        result["findings"] = call(service.evidence_bundle, job_id)["findings"]
+        return result
+
+    @router.get("/{job_id}/evidence")
+    async def assessment_evidence(job_id: str):
+        return call(service.evidence_bundle, job_id)
+
+    @router.post("/{job_id}/evidence/sync")
+    async def sync_assessment_evidence(job_id: str):
+        call(service.get, job_id)
+        return call(service.sync_evidence, job_id)
 
     @router.post("/{job_id}/cancel")
     async def cancel_assessment(job_id: str):
